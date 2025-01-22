@@ -43,7 +43,9 @@ class Canvas(QtWidgets.QWidget):
 
     _fill_drawing = False  # 是否填充绘制
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, shared_scale=None, **kwargs):
+        self.shared_scale = shared_scale if shared_scale is not None else 1.0  # 共享的缩放比例
+        self.scale = self.shared_scale  # 当前缩放比例
         self.epsilon = kwargs.pop("epsilon", 10.0)
         self.double_click = kwargs.pop("double_click", "close")
         if self.double_click not in [None, "close"]:
@@ -106,12 +108,29 @@ class Canvas(QtWidgets.QWidget):
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
 
         self.offset = QtCore.QPointF(0, 0)  # 初始化偏移量
-        # 连接缩放信号
-        self.zoomRequest.connect(self.handleZoomRequest)
+        self.zoomRequest.connect(self.handleZoomRequest)# 连接缩放信号
+        self._is_updating_scale = False  # 标记是否正在更新缩放比例
 
         self._ai_model = None
 
         self.shapes = []  # 初始化形状列表
+
+    def update_scale(self, new_scale):
+        """直接更新缩放比例"""
+        self.scale = new_scale
+        self.adjustSize()
+        self.update()
+
+    def on_scale_changed(self, new_scale):
+        """接收其他 Canvas 实例的缩放更新"""
+        if self._is_updating_scale:
+            return  # 如果当前实例正在更新缩放比例，则不再处理
+
+        self._is_updating_scale = True  # 标记为正在更新
+        self.scale = new_scale
+        self.adjustSize()
+        self.update()
+        self._is_updating_scale = False  # 更新完成
 
     def handleScrollRequest(self, delta, orientation):
         """处理滚动请求"""
@@ -121,12 +140,27 @@ class Canvas(QtWidgets.QWidget):
             self.offset.setY(self.offset.y() + delta)
         self.update()
 
+    def on_scale_changed(self, new_scale):
+        """接收其他 Canvas 实例的缩放更新"""
+        self.scale = new_scale
+        self.adjustSize()
+        self.update()
+
     def handleZoomRequest(self, delta, pos):
         """处理缩放请求"""
         if delta > 0:
-            self.zoomIn(pos)  # 放大
+            self.shared_scale *= 1.25  # 放大
         else:
-            self.zoomOut(pos)  # 缩小
+            self.shared_scale /= 1.25  # 缩小
+
+        # 更新当前 Canvas 的缩放比例
+        self.scale = self.shared_scale
+        self.adjustSize(pos)
+        self.update()
+
+        # 通知其他 Canvas 实例同步更新
+        if hasattr(self, "on_scale_changed"):
+            self.on_scale_changed(self.shared_scale)
 
     def zoomIn(self, pos):
         """放大"""
@@ -140,12 +174,18 @@ class Canvas(QtWidgets.QWidget):
         self.adjustSize(pos)
         self.update()
 
-    def adjustSize(self, pos):
+    def adjustSize(self, pos=None):
         """调整画布大小和偏移量"""
-        if self.pixmap:
-            # 计算缩放后的偏移量
-            self.offset = pos - (pos - self.offset) * self.scale
-            self.setFixedSize(self.pixmap.size() * self.scale)
+        if not self.pixmap or not self:  # 检查 pixmap 和 self 是否有效
+            return
+
+        if pos is None:
+            # 如果未传递 pos，使用画布中心点
+            pos = QtCore.QPointF(self.width() / 2, self.height() / 2)
+
+        # 计算缩放后的偏移量
+        self.offset = pos - (pos - self.offset) * self.scale
+        self.setFixedSize(self.pixmap.size() * self.scale)
 
     def clear(self):
         """清空画布内容"""
@@ -1131,3 +1171,18 @@ class Canvas(QtWidgets.QWidget):
             except RuntimeError:
                 # 如果对象已被删除，忽略错误
                 pass
+
+class SharedScale:
+    def __init__(self):
+        self.scale = 1.0  # 初始缩放比例
+        self.listeners = []  # 监听者列表
+
+    def setScale(self, scale):
+        """设置缩放比例，并通知所有监听者"""
+        self.scale = scale
+        for listener in self.listeners:
+            listener.updateScale(scale)
+
+    def addListener(self, listener):
+        """添加监听者"""
+        self.listeners.append(listener)

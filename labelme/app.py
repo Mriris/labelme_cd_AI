@@ -976,19 +976,24 @@ class MainWindow(QtWidgets.QMainWindow):
             self.canvas.setParent(None)
             self.canvas.deleteLater()
 
+        # 创建共享的缩放比例变量
+        self.shared_scale = 1.0
+
         # 创建双图画布
-        self.splitter = QSplitter(self)
+        self.splitter = QtWidgets.QSplitter(self)
         self.left_canvas = Canvas(
             epsilon=self._config["epsilon"],
             double_click=self._config["canvas"]["double_click"],
             num_backups=self._config["canvas"]["num_backups"],
             crosshair=self._config["canvas"]["crosshair"],
+            shared_scale=self.shared_scale,  # 共享缩放比例
         )
         self.right_canvas = Canvas(
             epsilon=self._config["epsilon"],
             double_click=self._config["canvas"]["double_click"],
             num_backups=self._config["canvas"]["num_backups"],
             crosshair=self._config["canvas"]["crosshair"],
+            shared_scale=self.shared_scale,  # 共享缩放比例
         )
 
         # 将两个画布添加到 QSplitter 中
@@ -996,7 +1001,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.splitter.addWidget(self.right_canvas)
 
         # 设置 QSplitter 的布局方向（水平或垂直）
-        self.splitter.setOrientation(Qt.Horizontal)  # 水平布局
+        self.splitter.setOrientation(QtCore.Qt.Horizontal)  # 水平布局
 
         # 将 QSplitter 设置为主窗口的中心部件
         self.setCentralWidget(self.splitter)
@@ -1009,6 +1014,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.right_canvas.shapeMoved.connect(self.left_canvas.sync_shapes)
         self.right_canvas.selectionChanged.connect(self.left_canvas.sync_shapes)
 
+        # 设置缩放同步回调
+        def update_right_canvas_scale(scale):
+            if not self.right_canvas._is_updating_scale:
+                self.right_canvas._is_updating_scale = True
+                self.right_canvas.update_scale(scale)
+                self.right_canvas._is_updating_scale = False
+
+        def update_left_canvas_scale(scale):
+            if not self.left_canvas._is_updating_scale:
+                self.left_canvas._is_updating_scale = True
+                self.left_canvas.update_scale(scale)
+                self.left_canvas._is_updating_scale = False
+
+        self.left_canvas.on_scale_changed = update_right_canvas_scale
+        self.right_canvas.on_scale_changed = update_left_canvas_scale
+
         # 同步单视图的状态到双视图
         if hasattr(self, 'canvas'):
             self.left_canvas.sync_shapes(self.canvas.shapes, self.canvas.pixmap, self.canvas.scale, self.canvas.offset)
@@ -1016,7 +1037,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # 更新按钮状态
         self.toggle_dual_view_action.setChecked(True)
-
 
     def menu(self, title, actions=None):
         menu = self.menuBar().addMenu(title)
