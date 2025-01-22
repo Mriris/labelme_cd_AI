@@ -27,24 +27,21 @@ MOVE_SPEED = 5.0
 
 class Canvas(QtWidgets.QWidget):
     # 定义信号
-    newShape = Signal(list)  # 新增形状信号
-    shapeMoved = Signal(list)  # 形状移动信号
-    selectionChanged = Signal(list)  # 选择变化信号
-    zoomRequest = QtCore.Signal(int, QtCore.QPoint)
-    scrollRequest = QtCore.Signal(int, int)
-    newShape = QtCore.Signal()
-    selectionChanged = QtCore.Signal(list)
-    shapeMoved = QtCore.Signal()
-    drawingPolygon = QtCore.Signal(bool)
-    vertexSelected = QtCore.Signal(bool)
-    mouseMoved = QtCore.Signal(QtCore.QPointF)
+    newShape = QtCore.Signal(list)  # 新增形状信号
+    shapeMoved = QtCore.Signal(list)  # 形状移动信号
+    selectionChanged = QtCore.Signal(list)  # 选择变化信号
+    zoomRequest = QtCore.Signal(int, QtCore.QPoint)  # 缩放信号
+    scrollRequest = QtCore.Signal(int, QtCore.Qt.Orientation)  # 滚动信号
+    drawingPolygon = QtCore.Signal(bool)  # 绘制多边形信号
+    vertexSelected = QtCore.Signal(bool)  # 顶点选择信号
+    mouseMoved = QtCore.Signal(QtCore.QPointF)  # 鼠标移动信号
 
-    CREATE, EDIT = 0, 1
+    CREATE, EDIT = 0, 1  # 模式常量
 
     # polygon, rectangle, line, or point
-    _createMode = "polygon"
+    _createMode = "polygon"  # 创建模式
 
-    _fill_drawing = False
+    _fill_drawing = False  # 是否填充绘制
 
     def __init__(self, *args, **kwargs):
         self.epsilon = kwargs.pop("epsilon", 10.0)
@@ -109,10 +106,46 @@ class Canvas(QtWidgets.QWidget):
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
 
         self.offset = QtCore.QPointF(0, 0)  # 初始化偏移量
+        # 连接缩放信号
+        self.zoomRequest.connect(self.handleZoomRequest)
 
         self._ai_model = None
 
         self.shapes = []  # 初始化形状列表
+
+    def handleScrollRequest(self, delta, orientation):
+        """处理滚动请求"""
+        if orientation == QtCore.Qt.Horizontal:
+            self.offset.setX(self.offset.x() + delta)
+        else:
+            self.offset.setY(self.offset.y() + delta)
+        self.update()
+
+    def handleZoomRequest(self, delta, pos):
+        """处理缩放请求"""
+        if delta > 0:
+            self.zoomIn(pos)  # 放大
+        else:
+            self.zoomOut(pos)  # 缩小
+
+    def zoomIn(self, pos):
+        """放大"""
+        self.scale *= 1.25
+        self.adjustSize(pos)
+        self.update()
+
+    def zoomOut(self, pos):
+        """缩小"""
+        self.scale /= 1.25
+        self.adjustSize(pos)
+        self.update()
+
+    def adjustSize(self, pos):
+        """调整画布大小和偏移量"""
+        if self.pixmap:
+            # 计算缩放后的偏移量
+            self.offset = pos - (pos - self.offset) * self.scale
+            self.setFixedSize(self.pixmap.size() * self.scale)
 
     def clear(self):
         """清空画布内容"""
@@ -946,24 +979,25 @@ class Canvas(QtWidgets.QWidget):
         return super(Canvas, self).minimumSizeHint()
 
     def wheelEvent(self, ev):
+        """鼠标滚轮事件，用于缩放和滚动"""
         if QT5:
             mods = ev.modifiers()
             delta = ev.angleDelta()
             if QtCore.Qt.ControlModifier == int(mods):
-                # with Ctrl/Command key
-                # zoom
+                # 按下 Ctrl/Command 键时触发缩放
                 self.zoomRequest.emit(delta.y(), ev.pos())
             else:
-                # scroll
+                # 未按下 Ctrl/Command 键时触发滚动
                 self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
                 self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
         else:
             if ev.orientation() == QtCore.Qt.Vertical:
                 mods = ev.modifiers()
                 if QtCore.Qt.ControlModifier == int(mods):
-                    # with Ctrl/Command key
+                    # 按下 Ctrl/Command 键时触发缩放
                     self.zoomRequest.emit(ev.delta(), ev.pos())
                 else:
+                    # 未按下 Ctrl/Command 键时触发滚动
                     self.scrollRequest.emit(
                         ev.delta(),
                         QtCore.Qt.Horizontal
@@ -971,6 +1005,7 @@ class Canvas(QtWidgets.QWidget):
                         else QtCore.Qt.Vertical,
                     )
             else:
+                # 水平滚动
                 self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
         ev.accept()
 
