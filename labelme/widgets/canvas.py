@@ -10,6 +10,7 @@ import labelme.ai
 import labelme.utils
 from labelme import QT5
 from labelme.shape import Shape
+from qtpy.QtCore import Signal
 
 # TODO(unknown):
 # - [maybe] Find optimal epsilon value.
@@ -25,6 +26,10 @@ MOVE_SPEED = 5.0
 
 
 class Canvas(QtWidgets.QWidget):
+    # 定义信号
+    newShape = Signal(list)  # 新增形状信号
+    shapeMoved = Signal(list)  # 形状移动信号
+    selectionChanged = Signal(list)  # 选择变化信号
     zoomRequest = QtCore.Signal(int, QtCore.QPoint)
     scrollRequest = QtCore.Signal(int, int)
     newShape = QtCore.Signal()
@@ -103,7 +108,18 @@ class Canvas(QtWidgets.QWidget):
         self.setMouseTracking(True)
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
 
+        self.offset = QtCore.QPointF(0, 0)  # 初始化偏移量
+
         self._ai_model = None
+
+        self.shapes = []  # 初始化形状列表
+
+    def clear(self):
+        """清空画布内容"""
+        self.pixmap = None  # 清空图像
+        self.shapes = []  # 清空标注形状
+        self.shapesBackups = []  # 清空备份
+        self.update()  # 刷新画布
 
     def fillDrawing(self):
         return self._fill_drawing
@@ -159,6 +175,17 @@ class Canvas(QtWidgets.QWidget):
         self._ai_model.set_image(
             image=labelme.utils.img_qt_to_arr(self.pixmap.toImage())
         )
+
+    def sync_shapes(self, shapes, pixmap=None, scale=None, offset=None):
+        """同步标注形状、图像、缩放比例和偏移量"""
+        self.shapes = shapes  # 更新形状列表
+        if pixmap is not None:
+            self.pixmap = pixmap  # 更新图像
+        if scale is not None:
+            self.scale = scale  # 更新缩放比例
+        if offset is not None:
+            self.offset = offset  # 更新偏移量
+        self.update()  # 刷新画布
 
     def storeShapes(self):
         shapesBackup = []
@@ -690,7 +717,8 @@ class Canvas(QtWidgets.QWidget):
         p.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
 
         p.scale(self.scale, self.scale)
-        p.translate(self.offsetToCenter())
+        self.offset = self.offsetToCenter()  # 更新 offset
+        p.translate(self.offset)  # 使用 offset 调整绘制位置
 
         p.drawPixmap(0, 0, self.pixmap)
 
@@ -792,6 +820,10 @@ class Canvas(QtWidgets.QWidget):
         return point / self.scale - self.offsetToCenter()
 
     def offsetToCenter(self):
+        """计算将画布内容居中的偏移量"""
+        if not self.pixmap:
+            return QtCore.QPointF(0, 0)
+
         s = self.scale
         area = super(Canvas, self).size()
         w, h = self.pixmap.width() * s, self.pixmap.height() * s
@@ -1017,6 +1049,7 @@ class Canvas(QtWidgets.QWidget):
         self.update()
 
     def loadPixmap(self, pixmap, clear_shapes=True):
+        logger.debug("Loading pixmap into canvas")
         self.pixmap = pixmap
         if self._ai_model:
             self._ai_model.set_image(
@@ -1051,7 +1084,15 @@ class Canvas(QtWidgets.QWidget):
         QtWidgets.QApplication.restoreOverrideCursor()
 
     def resetState(self):
+        """重置画布状态"""
         self.restoreCursor()
         self.pixmap = None
         self.shapesBackups = []
-        self.update()
+
+        # 确保对象未被删除后再调用 update
+        if hasattr(self, 'update'):
+            try:
+                self.update()
+            except RuntimeError:
+                # 如果对象已被删除，忽略错误
+                pass

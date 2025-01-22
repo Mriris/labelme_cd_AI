@@ -11,11 +11,20 @@ import webbrowser
 import imgviz
 import natsort
 import numpy as np
+from PyQt5.QtWidgets import QFileDialog
 from loguru import logger
 from qtpy import QtCore
 from qtpy import QtGui
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
+from qtpy.QtWidgets import (
+    QMainWindow,
+    QSplitter,  # 用于双图布局
+    QHBoxLayout,  # 用于水平布局
+    QWidget,  # 用于创建容器
+    QAction,  # 新增：用于创建按钮
+    QToolBar,  # 新增：用于工具栏
+)
 
 from labelme import PY2
 from labelme import __appname__
@@ -906,6 +915,109 @@ class MainWindow(QtWidgets.QMainWindow):
         # if self.firstStart:
         #    QWhatsThis.enterWhatsThisMode()
 
+        # 添加切换按钮
+        self.toggle_dual_view_action = QAction("切换双图模式", self)
+        self.toggle_dual_view_action.setCheckable(True)  # 设置为可切换状态
+        self.toggle_dual_view_action.triggered.connect(self.toggleDualView)
+
+        # 将按钮添加到工具栏
+        toolbar = QToolBar("切换工具栏", self)
+        toolbar.addAction(self.toggle_dual_view_action)
+        self.addToolBar(toolbar)
+
+        # 初始化双图模式状态
+        self.is_dual_view = False
+
+        # 初始化双图画布
+        self.left_canvas = None  # 双图左画布
+        self.right_canvas = None  # 双图右画布
+
+        # 设置初始模式为单图模式
+        self.enableSingleView()
+
+    def toggleDualView(self):
+        """切换单视图和双视图模式"""
+        if self.is_dual_view:
+            # 切换到单视图模式
+            self.enableSingleView()
+        else:
+            # 切换到双视图模式
+            self.enableDualView()
+        self.is_dual_view = not self.is_dual_view  # 切换状态
+
+    def enableSingleView(self):
+        """启用单图模式"""
+        # 释放旧的双图画布
+        if hasattr(self, 'splitter'):
+            self.splitter.setParent(None)
+            self.splitter.deleteLater()
+
+        # 创建单图画布
+        self.canvas = Canvas(
+            epsilon=self._config["epsilon"],
+            double_click=self._config["canvas"]["double_click"],
+            num_backups=self._config["canvas"]["num_backups"],
+            crosshair=self._config["canvas"]["crosshair"],
+        )
+
+        # 将单图画布设置为主窗口的中心部件
+        scrollArea = QtWidgets.QScrollArea()
+        scrollArea.setWidget(self.canvas)
+        scrollArea.setWidgetResizable(True)
+        self.setCentralWidget(scrollArea)
+
+        # 更新按钮状态
+        self.toggle_dual_view_action.setChecked(False)
+
+    def enableDualView(self):
+        """启用双图模式"""
+        # 释放旧的单图画布
+        if hasattr(self, 'canvas'):
+            self.canvas.setParent(None)
+            self.canvas.deleteLater()
+
+        # 创建双图画布
+        self.splitter = QSplitter(self)
+        self.left_canvas = Canvas(
+            epsilon=self._config["epsilon"],
+            double_click=self._config["canvas"]["double_click"],
+            num_backups=self._config["canvas"]["num_backups"],
+            crosshair=self._config["canvas"]["crosshair"],
+        )
+        self.right_canvas = Canvas(
+            epsilon=self._config["epsilon"],
+            double_click=self._config["canvas"]["double_click"],
+            num_backups=self._config["canvas"]["num_backups"],
+            crosshair=self._config["canvas"]["crosshair"],
+        )
+
+        # 将两个画布添加到 QSplitter 中
+        self.splitter.addWidget(self.left_canvas)
+        self.splitter.addWidget(self.right_canvas)
+
+        # 设置 QSplitter 的布局方向（水平或垂直）
+        self.splitter.setOrientation(Qt.Horizontal)  # 水平布局
+
+        # 将 QSplitter 设置为主窗口的中心部件
+        self.setCentralWidget(self.splitter)
+
+        # 同步画布的事件
+        self.left_canvas.newShape.connect(self.right_canvas.sync_shapes)
+        self.left_canvas.shapeMoved.connect(self.right_canvas.sync_shapes)
+        self.left_canvas.selectionChanged.connect(self.right_canvas.sync_shapes)
+        self.right_canvas.newShape.connect(self.left_canvas.sync_shapes)
+        self.right_canvas.shapeMoved.connect(self.left_canvas.sync_shapes)
+        self.right_canvas.selectionChanged.connect(self.left_canvas.sync_shapes)
+
+        # 同步单视图的状态到双视图
+        if hasattr(self, 'canvas'):
+            self.left_canvas.sync_shapes(self.canvas.shapes, self.canvas.pixmap, self.canvas.scale, self.canvas.offset)
+            self.right_canvas.sync_shapes(self.canvas.shapes, self.canvas.pixmap, self.canvas.scale, self.canvas.offset)
+
+        # 更新按钮状态
+        self.toggle_dual_view_action.setChecked(True)
+
+
     def menu(self, title, actions=None):
         menu = self.menuBar().addMenu(title)
         if actions:
@@ -947,22 +1059,33 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         utils.addActions(self.menus.edit, actions + self.actions.editMenu)
 
-    def setDirty(self):
-        # Even if we autosave the file, we keep the ability to undo
+    def setDirty(self, is_dirty=True):
+        """
+        标记当前文件是否需要保存。
+        :param is_dirty: 布尔值，True 表示文件已修改，False 表示文件未修改。
+        """
+        # 即使自动保存文件，我们也保留撤销功能
         self.actions.undo.setEnabled(self.canvas.isShapeRestorable)
 
-        if self._config["auto_save"] or self.actions.saveAuto.isChecked():
+        if not is_dirty and (self._config["auto_save"] or self.actions.saveAuto.isChecked()):
+            # 如果文件未修改且启用了自动保存，则保存标签
             label_file = osp.splitext(self.imagePath)[0] + ".json"
             if self.output_dir:
                 label_file_without_path = osp.basename(label_file)
                 label_file = osp.join(self.output_dir, label_file_without_path)
             self.saveLabels(label_file)
             return
-        self.dirty = True
-        self.actions.save.setEnabled(True)
+
+        # 更新 dirty 状态
+        self.dirty = is_dirty
+        self.actions.save.setEnabled(is_dirty)
+
+        # 更新窗口标题
         title = __appname__
         if self.filename is not None:
-            title = "{} - {}*".format(title, self.filename)
+            title = "{} - {}".format(title, self.filename)
+            if is_dirty:
+                title += "*"  # 添加星号表示文件已修改
         self.setWindowTitle(title)
 
     def setClean(self):
@@ -1060,13 +1183,44 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setDirty()
 
     def resetState(self):
+        """重置应用程序状态"""
+        # 清空标签列表
         self.labelList.clear()
+
+        # 重置文件相关状态
         self.filename = None
         self.imagePath = None
         self.imageData = None
         self.labelFile = None
         self.otherData = None
-        self.canvas.resetState()
+
+        # 重置画布状态（如果画布存在且未被删除）
+        if hasattr(self, 'canvas') and self.canvas is not None:
+            try:
+                self.canvas.resetState()
+            except RuntimeError:
+                # 如果画布已被删除，忽略错误
+                pass
+
+        # 如果是双视图模式，重置左右画布状态
+        if hasattr(self, 'left_canvas') and self.left_canvas is not None:
+            try:
+                self.left_canvas.resetState()
+            except RuntimeError:
+                # 如果画布已被删除，忽略错误
+                pass
+        if hasattr(self, 'right_canvas') and self.right_canvas is not None:
+            try:
+                self.right_canvas.resetState()
+            except RuntimeError:
+                # 如果画布已被删除，忽略错误
+                pass
+
+        # 更新保存按钮状态
+        self.actions.save.setEnabled(False)
+
+        # 更新窗口标题
+        self.setWindowTitle(__appname__)
 
     def currentItem(self):
         items = self.labelList.selectedItems()
@@ -1898,8 +2052,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self._config["keep_prev"] = keep_prev
 
     def openFile(self, _value=False):
+        """打开文件"""
         if not self.mayContinue():
             return
+
+        # 获取文件路径
         path = osp.dirname(str(self.filename)) if self.filename else "."
         formats = [
             "*.{}".format(fmt.data().decode())
@@ -1909,7 +2066,7 @@ class MainWindow(QtWidgets.QMainWindow):
             formats + ["*%s" % LabelFile.suffix]
         )
         fileDialog = FileDialogPreview(self)
-        fileDialog.setFileMode(FileDialogPreview.ExistingFile)
+        fileDialog.setFileMode(QFileDialog.ExistingFiles)  # 允许选择多个文件
         fileDialog.setNameFilter(filters)
         fileDialog.setWindowTitle(
             self.tr("%s - Choose Image or Label file") % __appname__,
@@ -1917,9 +2074,78 @@ class MainWindow(QtWidgets.QMainWindow):
         fileDialog.setWindowFilePath(path)
         fileDialog.setViewMode(FileDialogPreview.Detail)
         if fileDialog.exec_():
-            fileName = fileDialog.selectedFiles()[0]
-            if fileName:
-                self.loadFile(fileName)
+            filenames = fileDialog.selectedFiles()
+            if self.is_dual_view and len(filenames) == 2:  # 双图模式需要两张图片
+                self.loadDualImages(filenames[0], filenames[1])
+            elif not self.is_dual_view and len(filenames) == 1:  # 单图模式需要一张图片
+                self.loadImage(filenames[0])
+            else:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    self.tr("Error"),
+                    self.tr("Please select 2 images for dual view or 1 image for single view."),
+                )
+
+    def loadImage(self, filename):
+        """加载单视图模式下的图片"""
+        if filename and osp.exists(filename):
+            # 加载图像
+            self.image = QtGui.QImage(filename)
+            if self.image.isNull():
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    self.tr("Error"),
+                    self.tr("Failed to load image: %s") % filename,
+                )
+                return False
+
+            # 更新画布
+            self.canvas.loadPixmap(QtGui.QPixmap.fromImage(self.image))
+            self.imagePath = filename
+            self.setWindowTitle(__appname__ + " - " + osp.basename(filename))
+            self.setDirty(False)
+            return True
+        return False
+
+    def loadDualImages(self, left_filename, right_filename):
+        """加载双视图模式下的两张图片"""
+        if not osp.exists(left_filename) or not osp.exists(right_filename):
+            QtWidgets.QMessageBox.warning(
+                self,
+                self.tr("Error"),
+                self.tr("One or both of the files do not exist."),
+            )
+            return
+
+        # 加载左图画布
+        left_image = QtGui.QImage(left_filename)
+        if left_image.isNull():
+            QtWidgets.QMessageBox.warning(
+                self,
+                self.tr("Error"),
+                self.tr("Failed to load left image: %s") % left_filename,
+            )
+            return
+        self.left_canvas.loadPixmap(QtGui.QPixmap.fromImage(left_image))
+
+        # 加载右图画布
+        right_image = QtGui.QImage(right_filename)
+        if right_image.isNull():
+            QtWidgets.QMessageBox.warning(
+                self,
+                self.tr("Error"),
+                self.tr("Failed to load right image: %s") % right_filename,
+            )
+            return
+        self.right_canvas.loadPixmap(QtGui.QPixmap.fromImage(right_image))
+
+        # 更新窗口标题
+        self.setWindowTitle(
+            __appname__ + " - " + osp.basename(left_filename) + " | " + osp.basename(right_filename)
+        )
+
+        # 标记为未修改
+        self.setDirty(False)
 
     def changeOutputDirDialog(self, _value=False):
         default_output_dir = self.output_dir
@@ -2006,14 +2232,38 @@ class MainWindow(QtWidgets.QMainWindow):
             self.addRecentFile(filename)
             self.setClean()
 
-    def closeFile(self, _value=False):
+    def closeFile(self):
+        """关闭当前文件"""
         if not self.mayContinue():
             return
+
+        # 重置状态
         self.resetState()
-        self.setClean()
-        self.toggleActions(False)
-        self.canvas.setEnabled(False)
-        self.actions.saveAs.setEnabled(False)
+
+        # 清除画布（如果画布存在且未被删除）
+        if hasattr(self, 'canvas') and self.canvas is not None:
+            try:
+                self.canvas.clear()
+            except RuntimeError:
+                # 如果画布已被删除，忽略错误
+                pass
+
+        # 如果是双视图模式，清除左右画布
+        if hasattr(self, 'left_canvas') and self.left_canvas is not None:
+            try:
+                self.left_canvas.clear()
+            except RuntimeError:
+                # 如果画布已被删除，忽略错误
+                pass
+        if hasattr(self, 'right_canvas') and self.right_canvas is not None:
+            try:
+                self.right_canvas.clear()
+            except RuntimeError:
+                # 如果画布已被删除，忽略错误
+                pass
+
+        # 更新窗口标题
+        self.setWindowTitle(__appname__)
 
     def getLabelFile(self):
         if self.filename.lower().endswith(".json"):
