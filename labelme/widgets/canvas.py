@@ -10,7 +10,6 @@ import labelme.ai
 import labelme.utils
 from labelme import QT5
 from labelme.shape import Shape
-from qtpy.QtCore import Signal
 
 # TODO(unknown):
 # - [maybe] Find optimal epsilon value.
@@ -26,26 +25,24 @@ MOVE_SPEED = 5.0
 
 
 class Canvas(QtWidgets.QWidget):
-    # 定义信号
-    newShape = QtCore.Signal(list)  # 新增形状信号
-    shapeMoved = QtCore.Signal(list)  # 形状移动信号
-    selectionChanged = QtCore.Signal(list)  # 选择变化信号
-    zoomRequest = QtCore.Signal(int, QtCore.QPoint)  # 缩放信号
-    scrollRequest = QtCore.Signal(int, QtCore.Qt.Orientation)  # 滚动信号
-    drawingPolygon = QtCore.Signal(bool)  # 绘制多边形信号
-    vertexSelected = QtCore.Signal(bool)  # 顶点选择信号
-    mouseMoved = QtCore.Signal(QtCore.QPointF)  # 鼠标移动信号
+    zoomRequest = QtCore.Signal(int, QtCore.QPoint)
+    scrollRequest = QtCore.Signal(int, int)
+    newShape = QtCore.Signal()
+    selectionChanged = QtCore.Signal(list)
+    shapeMoved = QtCore.Signal()
+    drawingPolygon = QtCore.Signal(bool)
+    vertexSelected = QtCore.Signal(bool)
+    mouseMoved = QtCore.Signal(QtCore.QPointF)
 
-    CREATE, EDIT = 0, 1  # 模式常量
+    CREATE, EDIT = 0, 1
 
     # polygon, rectangle, line, or point
-    _createMode = "polygon"  # 创建模式
+    _createMode = "polygon"
 
-    _fill_drawing = False  # 是否填充绘制
+    _fill_drawing = False
 
-    def __init__(self, *args, shared_scale=None, **kwargs):
-        self.shared_scale = shared_scale if shared_scale is not None else 1.0  # 共享的缩放比例
-        self.scale = self.shared_scale  # 当前缩放比例
+    def __init__(self, *args, **kwargs):
+        self.my_index = kwargs.pop('my_index', 0)
         self.epsilon = kwargs.pop("epsilon", 10.0)
         self.double_click = kwargs.pop("double_click", "close")
         if self.double_click not in [None, "close"]:
@@ -107,92 +104,7 @@ class Canvas(QtWidgets.QWidget):
         self.setMouseTracking(True)
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
 
-        self.offset = QtCore.QPointF(0, 0)  # 初始化偏移量
-        self.zoomRequest.connect(self.handleZoomRequest)# 连接缩放信号
-        self._is_updating_scale = False  # 标记是否正在更新缩放比例
-
         self._ai_model = None
-
-        self.shapes = []  # 初始化形状列表
-
-    def update_scale(self, new_scale):
-        """直接更新缩放比例"""
-        self.scale = new_scale
-        self.adjustSize()
-        self.update()
-
-    def on_scale_changed(self, new_scale):
-        """接收其他 Canvas 实例的缩放更新"""
-        if self._is_updating_scale:
-            return  # 如果当前实例正在更新缩放比例，则不再处理
-
-        self._is_updating_scale = True  # 标记为正在更新
-        self.scale = new_scale
-        self.adjustSize()
-        self.update()
-        self._is_updating_scale = False  # 更新完成
-
-    def handleScrollRequest(self, delta, orientation):
-        """处理滚动请求"""
-        if orientation == QtCore.Qt.Horizontal:
-            self.offset.setX(self.offset.x() + delta)
-        else:
-            self.offset.setY(self.offset.y() + delta)
-        self.update()
-
-    def on_scale_changed(self, new_scale):
-        """接收其他 Canvas 实例的缩放更新"""
-        self.scale = new_scale
-        self.adjustSize()
-        self.update()
-
-    def handleZoomRequest(self, delta, pos):
-        """处理缩放请求"""
-        if delta > 0:
-            self.shared_scale *= 1.25  # 放大
-        else:
-            self.shared_scale /= 1.25  # 缩小
-
-        # 更新当前 Canvas 的缩放比例
-        self.scale = self.shared_scale
-        self.adjustSize(pos)
-        self.update()
-
-        # 通知其他 Canvas 实例同步更新
-        if hasattr(self, "on_scale_changed"):
-            self.on_scale_changed(self.shared_scale)
-
-    def zoomIn(self, pos):
-        """放大"""
-        self.scale *= 1.25
-        self.adjustSize(pos)
-        self.update()
-
-    def zoomOut(self, pos):
-        """缩小"""
-        self.scale /= 1.25
-        self.adjustSize(pos)
-        self.update()
-
-    def adjustSize(self, pos=None):
-        """调整画布大小和偏移量"""
-        if not self.pixmap or not self:  # 检查 pixmap 和 self 是否有效
-            return
-
-        if pos is None:
-            # 如果未传递 pos，使用画布中心点
-            pos = QtCore.QPointF(self.width() / 2, self.height() / 2)
-
-        # 计算缩放后的偏移量
-        self.offset = pos - (pos - self.offset) * self.scale
-        self.setFixedSize(self.pixmap.size() * self.scale)
-
-    def clear(self):
-        """清空画布内容"""
-        self.pixmap = None  # 清空图像
-        self.shapes = []  # 清空标注形状
-        self.shapesBackups = []  # 清空备份
-        self.update()  # 刷新画布
 
     def fillDrawing(self):
         return self._fill_drawing
@@ -248,17 +160,6 @@ class Canvas(QtWidgets.QWidget):
         self._ai_model.set_image(
             image=labelme.utils.img_qt_to_arr(self.pixmap.toImage())
         )
-
-    def sync_shapes(self, shapes, pixmap=None, scale=None, offset=None):
-        """同步标注形状、图像、缩放比例和偏移量"""
-        self.shapes = shapes  # 更新形状列表
-        if pixmap is not None:
-            self.pixmap = pixmap  # 更新图像
-        if scale is not None:
-            self.scale = scale  # 更新缩放比例
-        if offset is not None:
-            self.offset = offset  # 更新偏移量
-        self.update()  # 刷新画布
 
     def storeShapes(self):
         shapesBackup = []
@@ -790,8 +691,7 @@ class Canvas(QtWidgets.QWidget):
         p.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
 
         p.scale(self.scale, self.scale)
-        self.offset = self.offsetToCenter()  # 更新 offset
-        p.translate(self.offset)  # 使用 offset 调整绘制位置
+        p.translate(self.offsetToCenter())
 
         p.drawPixmap(0, 0, self.pixmap)
 
@@ -893,10 +793,6 @@ class Canvas(QtWidgets.QWidget):
         return point / self.scale - self.offsetToCenter()
 
     def offsetToCenter(self):
-        """计算将画布内容居中的偏移量"""
-        if not self.pixmap:
-            return QtCore.QPointF(0, 0)
-
         s = self.scale
         area = super(Canvas, self).size()
         w, h = self.pixmap.width() * s, self.pixmap.height() * s
@@ -1019,25 +915,24 @@ class Canvas(QtWidgets.QWidget):
         return super(Canvas, self).minimumSizeHint()
 
     def wheelEvent(self, ev):
-        """鼠标滚轮事件，用于缩放和滚动"""
         if QT5:
             mods = ev.modifiers()
             delta = ev.angleDelta()
             if QtCore.Qt.ControlModifier == int(mods):
-                # 按下 Ctrl/Command 键时触发缩放
+                # with Ctrl/Command key
+                # zoom
                 self.zoomRequest.emit(delta.y(), ev.pos())
             else:
-                # 未按下 Ctrl/Command 键时触发滚动
+                # scroll
                 self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
                 self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
         else:
             if ev.orientation() == QtCore.Qt.Vertical:
                 mods = ev.modifiers()
                 if QtCore.Qt.ControlModifier == int(mods):
-                    # 按下 Ctrl/Command 键时触发缩放
+                    # with Ctrl/Command key
                     self.zoomRequest.emit(ev.delta(), ev.pos())
                 else:
-                    # 未按下 Ctrl/Command 键时触发滚动
                     self.scrollRequest.emit(
                         ev.delta(),
                         QtCore.Qt.Horizontal
@@ -1045,7 +940,6 @@ class Canvas(QtWidgets.QWidget):
                         else QtCore.Qt.Vertical,
                     )
             else:
-                # 水平滚动
                 self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
         ev.accept()
 
@@ -1124,7 +1018,6 @@ class Canvas(QtWidgets.QWidget):
         self.update()
 
     def loadPixmap(self, pixmap, clear_shapes=True):
-        logger.debug("Loading pixmap into canvas")
         self.pixmap = pixmap
         if self._ai_model:
             self._ai_model.set_image(
@@ -1159,30 +1052,7 @@ class Canvas(QtWidgets.QWidget):
         QtWidgets.QApplication.restoreOverrideCursor()
 
     def resetState(self):
-        """重置画布状态"""
         self.restoreCursor()
         self.pixmap = None
         self.shapesBackups = []
-
-        # 确保对象未被删除后再调用 update
-        if hasattr(self, 'update'):
-            try:
-                self.update()
-            except RuntimeError:
-                # 如果对象已被删除，忽略错误
-                pass
-
-class SharedScale:
-    def __init__(self):
-        self.scale = 1.0  # 初始缩放比例
-        self.listeners = []  # 监听者列表
-
-    def setScale(self, scale):
-        """设置缩放比例，并通知所有监听者"""
-        self.scale = scale
-        for listener in self.listeners:
-            listener.updateScale(scale)
-
-    def addListener(self, listener):
-        """添加监听者"""
-        self.listeners.append(listener)
+        self.update()

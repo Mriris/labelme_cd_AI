@@ -198,7 +198,32 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.selectionChanged.connect(self.shapeSelectionChanged)
         self.canvas.drawingPolygon.connect(self.toggleDrawingSensitive)
 
-        self.setCentralWidget(scrollArea)
+        # 初始化第一个 ScrollArea
+        self.scrollArea = QtWidgets.QScrollArea()
+        self.scrollArea.setWidget(self.canvas)
+        self.scrollArea.setWidgetResizable(True)
+
+        # 初始化第二个 ScrollArea
+        self.scrollArea_1 = QtWidgets.QScrollArea()
+        self.canvas_1 = Canvas()
+        self.scrollArea_1.setWidget(self.canvas_1)
+        self.scrollArea_1.setWidgetResizable(True)
+
+        # 组织双图显示的布局
+        grid = QtWidgets.QGridLayout()
+        grid.addWidget(self.scrollArea, 0, 0)
+        grid.addWidget(self.scrollArea_1, 0, 1)
+
+        # 设置主窗口的中央组件
+        self.multi_canvas = QtWidgets.QWidget()
+        self.multi_canvas.setLayout(grid)
+        self.setCentralWidget(self.multi_canvas)
+
+        # 重新绑定 scrollBars，确保它们指向有效的 QScrollBar
+        self.scrollBars = {
+            Qt.Vertical: self.scrollArea.verticalScrollBar(),
+            Qt.Horizontal: self.scrollArea.horizontalScrollBar(),
+        }
 
         features = QtWidgets.QDockWidget.DockWidgetFeatures()
         for dock in ["flag_dock", "label_dock", "shape_dock", "file_dock"]:
@@ -1757,14 +1782,11 @@ class MainWindow(QtWidgets.QMainWindow):
             x_shift = round(pos.x() * canvas_scale_factor) - pos.x()
             y_shift = round(pos.y() * canvas_scale_factor) - pos.y()
 
-            self.setScroll(
-                Qt.Horizontal,
-                self.scrollBars[Qt.Horizontal].value() + x_shift,
-            )
-            self.setScroll(
-                Qt.Vertical,
-                self.scrollBars[Qt.Vertical].value() + y_shift,
-            )
+            # 确保 scrollBars 仍然指向有效对象
+            if self.scrollBars[Qt.Horizontal] is not None:
+                self.setScroll(Qt.Horizontal, self.scrollBars[Qt.Horizontal].value() + x_shift)
+            if self.scrollBars[Qt.Vertical] is not None:
+                self.setScroll(Qt.Vertical, self.scrollBars[Qt.Vertical].value() + y_shift)
 
     def setFitWindow(self, value=True):
         if value:
