@@ -210,6 +210,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.multi_canvas.setLayout(grid)
         self.setCentralWidget(self.multi_canvas)
 
+        # 重新绑定 scrollBars，确保它们指向有效的 QScrollBar
+        self.scrollBars = {
+            Qt.Vertical: self.scrollArea.verticalScrollBar(),
+            Qt.Horizontal: self.scrollArea.horizontalScrollBar(),
+        }
+
         features = QtWidgets.QDockWidget.DockWidgetFeatures()
         for dock in ["flag_dock", "label_dock", "shape_dock", "file_dock"]:
             if self._config[dock]["closable"]:
@@ -1602,14 +1608,11 @@ class MainWindow(QtWidgets.QMainWindow):
             x_shift = round(pos.x() * canvas_scale_factor) - pos.x()
             y_shift = round(pos.y() * canvas_scale_factor) - pos.y()
 
-            self.setScroll(
-                Qt.Horizontal,
-                self.scrollBars[Qt.Horizontal].value() + x_shift,
-            )
-            self.setScroll(
-                Qt.Vertical,
-                self.scrollBars[Qt.Vertical].value() + y_shift,
-            )
+            # 确保 scrollBars 仍然指向有效对象
+            if self.scrollBars[Qt.Horizontal] is not None:
+                self.setScroll(Qt.Horizontal, self.scrollBars[Qt.Horizontal].value() + x_shift)
+            if self.scrollBars[Qt.Vertical] is not None:
+                self.setScroll(Qt.Vertical, self.scrollBars[Qt.Vertical].value() + y_shift)
 
     def setFitWindow(self, value=True):
         if value:
