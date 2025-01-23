@@ -189,7 +189,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.selectionChanged.connect(self.shapeSelectionChanged)
         self.canvas.drawingPolygon.connect(self.toggleDrawingSensitive)
 
-        self.setCentralWidget(scrollArea)
+        # 初始化第一个 ScrollArea
+        self.scrollArea = QtWidgets.QScrollArea()
+        self.scrollArea.setWidget(self.canvas)
+        self.scrollArea.setWidgetResizable(True)
+
+        # 初始化第二个 ScrollArea
+        self.scrollArea_1 = QtWidgets.QScrollArea()
+        self.canvas_1 = Canvas()
+        self.scrollArea_1.setWidget(self.canvas_1)
+        self.scrollArea_1.setWidgetResizable(True)
+
+        # 组织双图显示的布局
+        grid = QtWidgets.QGridLayout()
+        grid.addWidget(self.scrollArea, 0, 0)
+        grid.addWidget(self.scrollArea_1, 0, 1)
+
+        # 设置主窗口的中央组件
+        self.multi_canvas = QtWidgets.QWidget()
+        self.multi_canvas.setLayout(grid)
+        self.setCentralWidget(self.multi_canvas)
 
         features = QtWidgets.QDockWidget.DockWidgetFeatures()
         for dock in ["flag_dock", "label_dock", "shape_dock", "file_dock"]:

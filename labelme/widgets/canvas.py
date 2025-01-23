@@ -42,6 +42,7 @@ class Canvas(QtWidgets.QWidget):
     _fill_drawing = False
 
     def __init__(self, *args, **kwargs):
+        self.my_index = kwargs.pop('my_index', 0)
         self.epsilon = kwargs.pop("epsilon", 10.0)
         self.double_click = kwargs.pop("double_click", "close")
         if self.double_click not in [None, "close"]:
