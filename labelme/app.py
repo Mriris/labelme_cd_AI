@@ -2076,6 +2076,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.setEnabled(True)
         self.canvas_1.setEnabled(True)
         self.status(str(self.tr("Loaded %s and %s")) % (filename1, filename2))
+        self.toggleActions(True)
         return True
 
     def changeOutputDirDialog(self, _value=False):
