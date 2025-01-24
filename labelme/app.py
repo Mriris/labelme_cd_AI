@@ -69,6 +69,10 @@ class MainWindow(QtWidgets.QMainWindow):
             config = get_config()
         self._config = config
 
+        # 初始化当前显示的图像文件名
+        self.current_image_1 = None
+        self.current_image_2 = None
+
         # set default shape colors
         Shape.line_color = QtGui.QColor(*self._config["shape"]["line_color"])
         Shape.fill_color = QtGui.QColor(*self._config["shape"]["fill_color"])
@@ -273,6 +277,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # Actions
         action = functools.partial(utils.newAction, self)
         shortcuts = self._config["shortcuts"]
+        # 使用 action() 创建切换图像按钮
+        switch_image = action(
+            self.tr("切换图像"),  # 按钮文本
+            self.switch_image,  # 绑定到的功能
+            None,  # 没有快捷键
+            "switch-image",  # 按钮图标
+            self.tr("切换左右图像的显示"),  # 按钮提示
+        )
+
         quit = action(
             self.tr("&Quit"),
             self.close,
@@ -895,6 +908,7 @@ class MainWindow(QtWidgets.QMainWindow):
             selectAiModel,
             None,
             ai_prompt_action,
+            switch_image,
         )
 
         self.statusBar().showMessage(str(self.tr("%s started.")) % __appname__)
@@ -961,6 +975,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.firstStart = True
         # if self.firstStart:
         #    QWhatsThis.enterWhatsThisMode()
+#TODO: 暂行方案解决右边图像无法交互的问题
+    def switch_image(self):
+        """切换显示的两张图片"""
+        if self.current_image_1 is None or self.current_image_2 is None:
+            logger.error("当前图像未加载，无法切换！")
+            return
+
+        # 调用 loadFiles 来切换图片
+        self.loadFiles(self.current_image_2, self.current_image_1)  # 切换显示的图像
 
     def initializeAiModelForFocusedCanvas(self):
         if self.canvas.hasFocus():  # 如果左侧Canvas获得焦点
@@ -2100,6 +2123,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # 加载图片到 Canvas
         self.canvas.loadPixmap(QtGui.QPixmap.fromImage(image1))
         self.canvas_1.loadPixmap(QtGui.QPixmap.fromImage(image2))
+
+        # 更新当前文件名
+        self.current_image_1 = filename1
+        self.current_image_2 = filename2
 
         # 加载第一张图片的标签
         label_file1 = osp.splitext(filename1)[0] + ".json"
