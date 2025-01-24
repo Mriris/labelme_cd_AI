@@ -1863,11 +1863,6 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).resizeEvent(event)
 
     def paintCanvas(self):
-        # # 检查图像是否为空
-        # if self.image.isNull():
-        #     logger.error(f"Cannot paint null image. Image path: {self.imagePath}")
-        #     return  # 如果图像为空，则跳过绘制
-
         # 如果图像为空且路径有效，尝试重新加载图像
         if self.image.isNull() and self.imagePath:
             self.image = QtGui.QImage(self.imagePath)
