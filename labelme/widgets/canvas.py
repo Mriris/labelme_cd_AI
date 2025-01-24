@@ -166,7 +166,7 @@ class Canvas(QtWidgets.QWidget):
         for shape in self.shapes:
             shapesBackup.append(shape.copy())
         if len(self.shapesBackups) > self.num_backups:
-            self.shapesBackups = self.shapesBackups[-self.num_backups - 1 :]
+            self.shapesBackups = self.shapesBackups[-self.num_backups - 1:]
         self.shapesBackups.append(shapesBackup)
 
     @property
@@ -273,10 +273,10 @@ class Canvas(QtWidgets.QWidget):
                 # Project the point to the pixmap's edges.
                 pos = self.intersectionPoint(self.current[-1], pos)
             elif (
-                self.snapping
-                and len(self.current) > 1
-                and self.createMode == "polygon"
-                and self.closeEnough(pos, self.current[0])
+                    self.snapping
+                    and len(self.current) > 1
+                    and self.createMode == "polygon"
+                    and self.closeEnough(pos, self.current[0])
             ):
                 # Attract line to starting point and
                 # colorise to alert the user.
@@ -431,12 +431,15 @@ class Canvas(QtWidgets.QWidget):
         if ev.button() == QtCore.Qt.LeftButton:
             if self.drawing():
                 if self.current:
-                    # Add point to existing shape.
+                    # 如果是多边形创建模式
                     if self.createMode == "polygon":
+                        # 添加点到现有多边形
                         self.current.addPoint(self.line[1])
                         self.line[0] = self.current[-1]
+                        # 只有在闭合时，才结束创建多边形
                         if self.current.isClosed():
-                            self.finalise()
+                            self.finalise()  # 结束多边形创建
+                            # self.newShape.emit()  # 同步新形状
                     elif self.createMode in ["rectangle", "circle", "line"]:
                         assert len(self.current.points) == 1
                         self.current.points = self.line.points
@@ -456,28 +459,20 @@ class Canvas(QtWidgets.QWidget):
                         if ev.modifiers() & QtCore.Qt.ControlModifier:
                             self.finalise()
                 elif not self.outOfPixmap(pos):
-                    # Create new shape.
+                    # 创建新的形状
                     self.current = Shape(
-                        shape_type="points"
-                        if self.createMode in ["ai_polygon", "ai_mask"]
-                        else self.createMode
+                        shape_type="points" if self.createMode in ["ai_polygon", "ai_mask"] else self.createMode
                     )
                     self.current.addPoint(pos, label=0 if is_shift_pressed else 1)
                     if self.createMode == "point":
                         self.finalise()
-                    elif (
-                        self.createMode in ["ai_polygon", "ai_mask"]
-                        and ev.modifiers() & QtCore.Qt.ControlModifier
-                    ):
+                    elif self.createMode in ["ai_polygon", "ai_mask"] and ev.modifiers() & QtCore.Qt.ControlModifier:
                         self.finalise()
                     else:
                         if self.createMode == "circle":
                             self.current.shape_type = "circle"
                         self.line.points = [pos, pos]
-                        if (
-                            self.createMode in ["ai_polygon", "ai_mask"]
-                            and is_shift_pressed
-                        ):
+                        if self.createMode in ["ai_polygon", "ai_mask"] and is_shift_pressed:
                             self.line.point_labels = [0, 0]
                         else:
                             self.line.point_labels = [1, 1]
@@ -488,7 +483,7 @@ class Canvas(QtWidgets.QWidget):
                 if self.selectedEdge() and ev.modifiers() == QtCore.Qt.AltModifier:
                     self.addPointToEdge()
                 elif self.selectedVertex() and ev.modifiers() == (
-                    QtCore.Qt.AltModifier | QtCore.Qt.ShiftModifier
+                        QtCore.Qt.AltModifier | QtCore.Qt.ShiftModifier
                 ):
                     self.removeSelectedPoint()
 
@@ -499,7 +494,7 @@ class Canvas(QtWidgets.QWidget):
         elif ev.button() == QtCore.Qt.RightButton and self.editing():
             group_mode = int(ev.modifiers()) == QtCore.Qt.ControlModifier
             if not self.selectedShapes or (
-                self.hShape is not None and self.hShape not in self.selectedShapes
+                    self.hShape is not None and self.hShape not in self.selectedShapes
             ):
                 self.selectShapePoint(pos, multiple_selection_mode=group_mode)
                 self.repaint()
@@ -513,24 +508,25 @@ class Canvas(QtWidgets.QWidget):
                 # Cancel the move by deleting the shadow copy.
                 self.selectedShapesCopy = []
                 self.repaint()
+
         elif ev.button() == QtCore.Qt.LeftButton:
             if self.editing():
-                if (
-                    self.hShape is not None
-                    and self.hShapeIsSelected
-                    and not self.movingShape
-                ):
-                    self.selectionChanged.emit(
-                        [x for x in self.selectedShapes if x != self.hShape]
-                    )
+                if self.hShape is not None and self.hShapeIsSelected and not self.movingShape:
+                    self.selectionChanged.emit([x for x in self.selectedShapes if x != self.hShape])
 
-        if self.movingShape and self.hShape:
-            index = self.shapes.index(self.hShape)
-            if self.shapesBackups[-1][index].points != self.shapes[index].points:
-                self.storeShapes()
-                self.shapeMoved.emit()
+            # 如果形状正在被移动，检查是否需要同步
+            if self.movingShape and self.hShape:
+                index = self.shapes.index(self.hShape)
+                if self.shapesBackups[-1][index].points != self.shapes[index].points:
+                    self.storeShapes()
+                    self.shapeMoved.emit()  # 触发形状移动同步信号
 
-            self.movingShape = False
+                self.movingShape = False
+
+            # 如果是多边形模式，并且当前形状已经闭合，结束并触发同步
+            if self.drawing() and self.createMode == "polygon" and self.current and self.current.isClosed():
+                self.finalise()  # 调用finalise来结束多边形创建
+                self.newShape.emit()  # 触发同步信号
 
     def endMove(self, copy):
         assert self.selectedShapes and self.selectedShapesCopy
@@ -561,8 +557,8 @@ class Canvas(QtWidgets.QWidget):
 
     def canCloseShape(self):
         return self.drawing() and (
-            (self.current and len(self.current) > 2)
-            or self.createMode in ["ai_polygon", "ai_mask"]
+                (self.current and len(self.current) > 2)
+                or self.createMode in ["ai_polygon", "ai_mask"]
         )
 
     def mouseDoubleClickEvent(self, ev):
@@ -570,7 +566,7 @@ class Canvas(QtWidgets.QWidget):
             return
 
         if (
-            self.createMode == "polygon" and self.canCloseShape()
+                self.createMode == "polygon" and self.canCloseShape()
         ) or self.createMode in ["ai_polygon", "ai_mask"]:
             self.finalise()
 
@@ -699,10 +695,10 @@ class Canvas(QtWidgets.QWidget):
 
         # draw crosshair
         if (
-            self._crosshair[self._createMode]
-            and self.drawing()
-            and self.prevMovePoint
-            and not self.outOfPixmap(self.prevMovePoint)
+                self._crosshair[self._createMode]
+                and self.drawing()
+                and self.prevMovePoint
+                and not self.outOfPixmap(self.prevMovePoint)
         ):
             p.setPen(QtGui.QColor(0, 0, 0))
             p.drawLine(
@@ -732,10 +728,10 @@ class Canvas(QtWidgets.QWidget):
                 s.paint(p)
 
         if (
-            self.fillDrawing()
-            and self.createMode == "polygon"
-            and self.current is not None
-            and len(self.current.points) >= 2
+                self.fillDrawing()
+                and self.createMode == "polygon"
+                and self.current is not None
+                and len(self.current.points) >= 2
         ):
             drawing_shape = self.current.copy()
             if drawing_shape.fill_color.getRgb()[3] == 0:
@@ -781,7 +777,7 @@ class Canvas(QtWidgets.QWidget):
                 shape_type="mask",
                 points=[QtCore.QPointF(x1, y1), QtCore.QPointF(x2, y2)],
                 point_labels=[1, 1],
-                mask=mask[y1 : y2 + 1, x1 : x2 + 1],
+                mask=mask[y1: y2 + 1, x1: x2 + 1],
             )
             drawing_shape.selected = True
             drawing_shape.paint(p)
@@ -831,7 +827,7 @@ class Canvas(QtWidgets.QWidget):
                 shape_type="mask",
                 points=[QtCore.QPointF(x1, y1), QtCore.QPointF(x2, y2)],
                 point_labels=[1, 1],
-                mask=mask[y1 : y2 + 1, x1 : x2 + 1],
+                mask=mask[y1: y2 + 1, x1: x2 + 1],
             )
         self.current.close()
 

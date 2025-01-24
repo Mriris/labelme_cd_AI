@@ -204,6 +204,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.drawingPolygon.connect(self.toggleDrawingSensitive)
 
         self.canvas.shapeMoved.connect(self.syncCanvas) # 连接画布上的形状移动信号到syncCanvas槽函数
+        self.canvas.newShape.connect(self.syncCanvas) # 连接画布上的新形状信号到syncCanvas槽函数
 
         # 初始化第一个 ScrollArea
         self.scrollArea = QtWidgets.QScrollArea()
