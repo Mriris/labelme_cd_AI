@@ -203,6 +203,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.selectionChanged.connect(self.shapeSelectionChanged)
         self.canvas.drawingPolygon.connect(self.toggleDrawingSensitive)
 
+        self.canvas.shapeMoved.connect(self.syncCanvas) # 连接画布上的形状移动信号到syncCanvas槽函数
+
         # 初始化第一个 ScrollArea
         self.scrollArea = QtWidgets.QScrollArea()
         self.scrollArea.setWidget(self.canvas)
@@ -944,7 +946,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.firstStart = True
         # if self.firstStart:
         #    QWhatsThis.enterWhatsThisMode()
-
+    def syncCanvas(self):
+        """同步其他画布"""
+        if self.canvas_1 is not None:
+            self.canvas_1.loadShapes(self.canvas.shapes, replace=True)
     def menu(self, title, actions=None):
         menu = self.menuBar().addMenu(title)
         if actions:
@@ -1410,10 +1415,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._noSelectionSlot = False
 
         # 将标签加载到第一个 Canvas
-        self.canvas.loadShapes(shapes, replace=replace)
+        self.canvas.loadShapes(shapes, replace=replace, sync_canvas=self.canvas_1)
 
         # 将标签同步加载到第二个 Canvas
-        self.canvas_1.loadShapes(shapes, replace=replace)
+        self.canvas_1.loadShapes(shapes, replace=replace, sync_canvas=self.canvas)
 
         # 更新两个 Canvas 的显示
         self.canvas.update()

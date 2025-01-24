@@ -1029,7 +1029,6 @@ class Canvas(QtWidgets.QWidget):
 
     def loadShapes(self, shapes, replace=True, sync_canvas=None):
         """加载标签到 Canvas，并支持同步到其他 Canvas"""
-
         # 1. 保存当前的缩放状态
         current_scale = self.scale
 
