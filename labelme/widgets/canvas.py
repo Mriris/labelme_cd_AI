@@ -106,6 +106,10 @@ class Canvas(QtWidgets.QWidget):
 
         self._ai_model = None
 
+    def setCanvasRef(self, canvas, canvas_1):
+        """设置 canvas 和 canvas_1 的引用"""
+        self.canvas_ref = canvas
+        self.canvas_1_ref = canvas_1
     def fillDrawing(self):
         return self._fill_drawing
 
@@ -425,7 +429,7 @@ class Canvas(QtWidgets.QWidget):
             pos = self.transformPos(ev.localPos())
         else:
             pos = self.transformPos(ev.posF())
-
+        # self.setCursor(QtCore.Qt.CrossCursor)  # 强制设置十字光标
         is_shift_pressed = ev.modifiers() & QtCore.Qt.ShiftModifier
 
         if ev.button() == QtCore.Qt.LeftButton:
@@ -502,12 +506,19 @@ class Canvas(QtWidgets.QWidget):
 
     def mouseReleaseEvent(self, ev):
         if ev.button() == QtCore.Qt.RightButton:
-            menu = self.menus[len(self.selectedShapesCopy) > 0]
-            self.restoreCursor()
-            if not menu.exec_(self.mapToGlobal(ev.pos())) and self.selectedShapesCopy:
-                # Cancel the move by deleting the shadow copy.
-                self.selectedShapesCopy = []
-                self.repaint()
+            # 使用传递的 canvas 和 canvas_1 进行操作
+            if self.canvas_ref.hasFocus():  # 左侧canvas获得焦点
+                menu = self.menus[len(self.selectedShapesCopy) > 0]
+                self.restoreCursor()
+                if not menu.exec_(self.canvas_ref.mapToGlobal(ev.pos())) and self.selectedShapesCopy:
+                    self.selectedShapesCopy = []
+                    self.repaint()
+            elif self.canvas_1_ref.hasFocus():  # 右侧canvas获得焦点
+                menu = self.menus[len(self.selectedShapesCopy) > 0]
+                self.restoreCursor()
+                if not menu.exec_(self.canvas_1_ref.mapToGlobal(ev.pos())) and self.selectedShapesCopy:
+                    self.selectedShapesCopy = []
+                    self.repaint()
 
         elif ev.button() == QtCore.Qt.LeftButton:
             if self.editing():
@@ -727,6 +738,7 @@ class Canvas(QtWidgets.QWidget):
             for s in self.selectedShapesCopy:
                 s.paint(p)
 
+        # Handle drawing shapes with AI model
         if (
                 self.fillDrawing()
                 and self.createMode == "polygon"
@@ -744,43 +756,51 @@ class Canvas(QtWidgets.QWidget):
             drawing_shape.fill = True
             drawing_shape.paint(p)
         elif self.createMode == "ai_polygon" and self.current is not None:
-            drawing_shape = self.current.copy()
-            drawing_shape.addPoint(
-                point=self.line.points[1],
-                label=self.line.point_labels[1],
-            )
-            points = self._ai_model.predict_polygon_from_points(
-                points=[[point.x(), point.y()] for point in drawing_shape.points],
-                point_labels=drawing_shape.point_labels,
-            )
-            if len(points) > 2:
-                drawing_shape.setShapeRefined(
-                    shape_type="polygon",
-                    points=[QtCore.QPointF(point[0], point[1]) for point in points],
-                    point_labels=[1] * len(points),
+            if self._ai_model is not None:  # Check if AI model is initialized
+                drawing_shape = self.current.copy()
+                drawing_shape.addPoint(
+                    point=self.line.points[1],
+                    label=self.line.point_labels[1],
                 )
-                drawing_shape.fill = self.fillDrawing()
+                points = self._ai_model.predict_polygon_from_points(
+                    points=[[point.x(), point.y()] for point in drawing_shape.points],
+                    point_labels=drawing_shape.point_labels,
+                )
+                if len(points) > 2:
+                    drawing_shape.setShapeRefined(
+                        shape_type="polygon",
+                        points=[QtCore.QPointF(point[0], point[1]) for point in points],
+                        point_labels=[1] * len(points),
+                    )
+                    drawing_shape.fill = self.fillDrawing()
+                    drawing_shape.selected = True
+                    drawing_shape.paint(p)
+                else:
+                    logger.warning("AI model failed to refine the polygon.")
+            else:
+                logger.warning("AI model is not initialized.")
+        elif self.createMode == "ai_mask" and self.current is not None:
+            if self._ai_model is not None:  # Check if AI model is initialized
+                drawing_shape = self.current.copy()
+                drawing_shape.addPoint(
+                    point=self.line.points[1],
+                    label=self.line.point_labels[1],
+                )
+                mask = self._ai_model.predict_mask_from_points(
+                    points=[[point.x(), point.y()] for point in drawing_shape.points],
+                    point_labels=drawing_shape.point_labels,
+                )
+                y1, x1, y2, x2 = imgviz.instances.masks_to_bboxes([mask])[0].astype(int)
+                drawing_shape.setShapeRefined(
+                    shape_type="mask",
+                    points=[QtCore.QPointF(x1, y1), QtCore.QPointF(x2, y2)],
+                    point_labels=[1, 1],
+                    mask=mask[y1: y2 + 1, x1: x2 + 1],
+                )
                 drawing_shape.selected = True
                 drawing_shape.paint(p)
-        elif self.createMode == "ai_mask" and self.current is not None:
-            drawing_shape = self.current.copy()
-            drawing_shape.addPoint(
-                point=self.line.points[1],
-                label=self.line.point_labels[1],
-            )
-            mask = self._ai_model.predict_mask_from_points(
-                points=[[point.x(), point.y()] for point in drawing_shape.points],
-                point_labels=drawing_shape.point_labels,
-            )
-            y1, x1, y2, x2 = imgviz.instances.masks_to_bboxes([mask])[0].astype(int)
-            drawing_shape.setShapeRefined(
-                shape_type="mask",
-                points=[QtCore.QPointF(x1, y1), QtCore.QPointF(x2, y2)],
-                point_labels=[1, 1],
-                mask=mask[y1: y2 + 1, x1: x2 + 1],
-            )
-            drawing_shape.selected = True
-            drawing_shape.paint(p)
+            else:
+                logger.warning("AI model is not initialized.")
 
         p.end()
 

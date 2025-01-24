@@ -211,11 +211,28 @@ class MainWindow(QtWidgets.QMainWindow):
         self.scrollArea.setWidget(self.canvas)
         self.scrollArea.setWidgetResizable(True)
 
-        # 初始化第二个 ScrollArea
+        # 初始化第二个 ScrollArea 和 Canvas
         self.scrollArea_1 = QtWidgets.QScrollArea()
-        self.canvas_1 = Canvas()
+        self.canvas_1 = Canvas(
+            epsilon=self._config["epsilon"],
+            double_click=self._config["canvas"]["double_click"],
+            num_backups=self._config["canvas"]["num_backups"],
+            crosshair=self._config["canvas"]["crosshair"],
+        )
         self.scrollArea_1.setWidget(self.canvas_1)
         self.scrollArea_1.setWidgetResizable(True)
+
+        # 设置canvas_1的createMode为polygon，与左侧canvas同步
+        self.canvas_1.createMode = "polygon"
+
+        # 绑定鼠标事件
+        self.canvas_1.mousePressEvent = self.canvas.mousePressEvent
+        self.canvas_1.mouseMoveEvent = self.canvas.mouseMoveEvent
+        self.canvas_1.mouseReleaseEvent = self.canvas.mouseReleaseEvent
+
+        # 连接信号到同步函数
+        self.canvas_1.newShape.connect(self.syncCanvas)  # 同步新形状
+        self.canvas_1.shapeMoved.connect(self.syncCanvas)  # 同步移动形状
 
         # 组织双图显示的布局
         grid = QtWidgets.QGridLayout()
@@ -232,6 +249,9 @@ class MainWindow(QtWidgets.QMainWindow):
             Qt.Vertical: self.scrollArea.verticalScrollBar(),
             Qt.Horizontal: self.scrollArea.horizontalScrollBar(),
         }
+
+        # 将它们传递给 canvas.py 中的实例化 Canvas 对象
+        self.canvas.setCanvasRef(self.canvas, self.canvas_1)
 
         features = QtWidgets.QDockWidget.DockWidgetFeatures()
         for dock in ["flag_dock", "label_dock", "shape_dock", "file_dock"]:
@@ -417,9 +437,7 @@ class MainWindow(QtWidgets.QMainWindow):
             enabled=False,
         )
         createAiPolygonMode.changed.connect(
-            lambda: self.canvas.initializeAiModel(
-                name=self._selectAiModelComboBox.currentText()
-            )
+            lambda: self.initializeAiModelForFocusedCanvas()
             if self.canvas.createMode == "ai_polygon"
             else None
         )
@@ -432,9 +450,7 @@ class MainWindow(QtWidgets.QMainWindow):
             enabled=False,
         )
         createAiMaskMode.changed.connect(
-            lambda: self.canvas.initializeAiModel(
-                name=self._selectAiModelComboBox.currentText()
-            )
+            lambda: self.initializeAiModelForFocusedCanvas()
             if self.canvas.createMode == "ai_mask"
             else None
         )
@@ -846,9 +862,7 @@ class MainWindow(QtWidgets.QMainWindow):
             model_index = 0
         self._selectAiModelComboBox.setCurrentIndex(model_index)
         self._selectAiModelComboBox.currentIndexChanged.connect(
-            lambda: self.canvas.initializeAiModel(
-                name=self._selectAiModelComboBox.currentText()
-            )
+            lambda: self.initializeAiModelForFocusedCanvas()
             if self.canvas.createMode in ["ai_polygon", "ai_mask"]
             else None
         )
@@ -947,6 +961,30 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.firstStart = True
         # if self.firstStart:
         #    QWhatsThis.enterWhatsThisMode()
+
+    def initializeAiModelForFocusedCanvas(self):
+        if self.canvas.hasFocus():  # 如果左侧Canvas获得焦点
+            self.canvas.initializeAiModel(name=self._selectAiModelComboBox.currentText())
+        else:
+            self.canvas_1.initializeAiModel(name=self._selectAiModelComboBox.currentText())
+
+    def mouseReleaseEvent(self, ev):
+        if ev.button() == QtCore.Qt.RightButton:
+            # 判断当前焦点是左侧还是右侧Canvas
+            if self.canvas.hasFocus():  # 左侧canvas
+                menu = self.canvas.menus[len(self.canvas.selectedShapesCopy) > 0]
+                self.restoreCursor()
+                if not menu.exec_(self.canvas.mapToGlobal(ev.pos())) and self.canvas.selectedShapesCopy:
+                    self.selectedShapesCopy = []
+                    self.canvas.repaint()
+
+            elif self.canvas_1.hasFocus():  # 右侧canvas
+                menu = self.canvas_1.menus[len(self.canvas_1.selectedShapesCopy) > 0]
+                self.restoreCursor()
+                if not menu.exec_(self.canvas_1.mapToGlobal(ev.pos())) and self.canvas_1.selectedShapesCopy:
+                    self.canvas_1.selectedShapesCopy = []
+                    self.canvas_1.repaint()
+
     def syncCanvas(self):
         """同步其他画布"""
         if self.canvas_1 is not None:
@@ -1160,8 +1198,10 @@ class MainWindow(QtWidgets.QMainWindow):
             "ai_mask": self.actions.createAiMaskMode,
         }
 
+        # 设置画布的编辑模式和创建模式
         self.canvas.setEditing(edit)
         self.canvas.createMode = createMode
+        self.canvas_1.createMode = createMode  # 确保右侧canvas也设置为相同的createMode
         if edit:
             for draw_action in draw_actions.values():
                 draw_action.setEnabled(True)
