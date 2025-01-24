@@ -1029,21 +1029,35 @@ class Canvas(QtWidgets.QWidget):
 
     def loadShapes(self, shapes, replace=True, sync_canvas=None):
         """加载标签到 Canvas，并支持同步到其他 Canvas"""
+
+        # 1. 保存当前的缩放状态
+        current_scale = self.scale
+
+        # 2. 加载形状（替换或追加）
         if replace:
             self.shapes = list(shapes)  # 替换现有标签
         else:
             self.shapes.extend(shapes)  # 追加标签
 
+        # 3. 存储形状（备份）
         self.storeShapes()
+
+        # 清空当前状态（例如当前选择的形状）
         self.current = None
         self.hShape = None
         self.hVertex = None
         self.hEdge = None
-        self.update()  # 更新当前 Canvas 显示
 
-        # 如果需要同步到另一个 Canvas，则调用它的 loadShapes 方法
+        # 4. 同步到其他 Canvas（如果需要）
         if sync_canvas is not None:
             sync_canvas.loadShapes(shapes, replace=replace)
+
+        # 5. 延迟刷新画布，避免干扰缩放
+        QtCore.QTimer.singleShot(0, self.update)
+
+        # 6. 恢复缩放状态
+        self.scale = current_scale
+        self.repaint()  # 重新绘制画布，确保缩放状态恢复
 
     def setShapeVisible(self, shape, value):
         self.visible[shape] = value

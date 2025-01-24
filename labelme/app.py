@@ -1863,7 +1863,19 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).resizeEvent(event)
 
     def paintCanvas(self):
-        assert not self.image.isNull(), "cannot paint null image"
+        # 检查图像是否为空
+        if self.image.isNull():
+            logger.error(f"Cannot paint null image. Image path: {self.imagePath}")
+            return  # 如果图像为空，则跳过绘制
+
+        # 如果图像为空且路径有效，尝试重新加载图像
+        if self.image.isNull() and self.imagePath:
+            self.image = QtGui.QImage(self.imagePath)
+            if self.image.isNull():
+                logger.error(f"Failed to load image from {self.imagePath}")
+                return  # 如果加载失败，则跳过绘制
+
+        # 确保加载了有效的图像后再进行绘制
         self.canvas.scale = 0.01 * self.zoomWidget.value()
         self.canvas.adjustSize()
         self.canvas.update()
