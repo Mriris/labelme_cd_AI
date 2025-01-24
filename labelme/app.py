@@ -91,6 +91,20 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
 
+        # 修改快捷键绑定代码
+        QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+Up"), self).activated.connect(
+            lambda: self.scrollRequest(120, Qt.Vertical)  # 向上滚动时正值
+        )
+        QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+Down"), self).activated.connect(
+            lambda: self.scrollRequest(-120, Qt.Vertical)  # 向下滚动时负值
+        )
+        QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+Left"), self).activated.connect(
+            lambda: self.scrollRequest(120, Qt.Horizontal)  # 向左滚动时正值
+        )
+        QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+Right"), self).activated.connect(
+            lambda: self.scrollRequest(-120, Qt.Horizontal)  # 向右滚动时负值
+        )
+
         # Whether we need to save or not.
         self.dirty = False
 
@@ -1570,21 +1584,45 @@ class MainWindow(QtWidgets.QMainWindow):
             self.canvas.shapesBackups.pop()
 
     def scrollRequest(self, delta, orientation):
-        units = -delta * 0.1  # natural scroll
+        """处理滚动请求并同步两个 Canvas 的滚动条"""
+        units = -delta * 0.1  # 滚动单位
         bar = self.scrollBars[orientation]
         value = bar.value() + bar.singleStep() * units
+
+        # 同步设置滚动条
         self.setScroll(orientation, value)
 
     def setScroll(self, orientation, value):
+        """同步两个 Canvas 的滚动条"""
+        # 更新左侧滚动条
         self.scrollBars[orientation].setValue(int(value))
+
+        # 同步更新右侧滚动条
+        if orientation == Qt.Horizontal:
+            self.scrollArea_1.horizontalScrollBar().setValue(int(value))
+        elif orientation == Qt.Vertical:
+            self.scrollArea_1.verticalScrollBar().setValue(int(value))
+
+        # 保存滚动值
         self.scroll_values[orientation][self.filename] = value
 
     def setZoom(self, value):
+        """同步两个 Canvas 的缩放比例"""
         self.actions.fitWidth.setChecked(False)
         self.actions.fitWindow.setChecked(False)
         self.zoomMode = self.MANUAL_ZOOM
         self.zoomWidget.setValue(value)
         self.zoom_values[self.filename] = (self.zoomMode, value)
+
+        # 同步左侧 Canvas 的缩放
+        self.canvas.scale = 0.01 * value
+        self.canvas.adjustSize()
+        self.canvas.update()
+
+        # 同步右侧 Canvas 的缩放
+        self.canvas_1.scale = 0.01 * value
+        self.canvas_1.adjustSize()
+        self.canvas_1.update()
 
     def addZoom(self, increment=1.1):
         zoom_value = self.zoomWidget.value() * increment
@@ -1595,12 +1633,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setZoom(zoom_value)
 
     def zoomRequest(self, delta, pos):
+        """同步两个 Canvas 的滚动和缩放"""
         canvas_width_old = self.canvas.width()
-        units = 1.1
-        if delta < 0:
-            units = 0.9
-        self.addZoom(units)
+        units = 1.1 if delta > 0 else 0.9
+        self.addZoom(units)  # 调用 addZoom 方法，同步缩放
 
+        # 计算滚动偏移
         canvas_width_new = self.canvas.width()
         if canvas_width_old != canvas_width_new:
             canvas_scale_factor = canvas_width_new / canvas_width_old
@@ -1608,11 +1646,17 @@ class MainWindow(QtWidgets.QMainWindow):
             x_shift = round(pos.x() * canvas_scale_factor) - pos.x()
             y_shift = round(pos.y() * canvas_scale_factor) - pos.y()
 
-            # 确保 scrollBars 仍然指向有效对象
+            # 确保两个 Canvas 的滚动条同步
             if self.scrollBars[Qt.Horizontal] is not None:
                 self.setScroll(Qt.Horizontal, self.scrollBars[Qt.Horizontal].value() + x_shift)
+                self.scrollArea_1.horizontalScrollBar().setValue(
+                    self.scrollBars[Qt.Horizontal].value() + x_shift
+                )
             if self.scrollBars[Qt.Vertical] is not None:
                 self.setScroll(Qt.Vertical, self.scrollBars[Qt.Vertical].value() + y_shift)
+                self.scrollArea_1.verticalScrollBar().setValue(
+                    self.scrollBars[Qt.Vertical].value() + y_shift
+                )
 
     def setFitWindow(self, value=True):
         if value:
