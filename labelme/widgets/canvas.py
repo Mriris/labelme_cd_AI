@@ -1027,17 +1027,23 @@ class Canvas(QtWidgets.QWidget):
             self.shapes = []
         self.update()
 
-    def loadShapes(self, shapes, replace=True):
+    def loadShapes(self, shapes, replace=True, sync_canvas=None):
+        """加载标签到 Canvas，并支持同步到其他 Canvas"""
         if replace:
-            self.shapes = list(shapes)
+            self.shapes = list(shapes)  # 替换现有标签
         else:
-            self.shapes.extend(shapes)
+            self.shapes.extend(shapes)  # 追加标签
+
         self.storeShapes()
         self.current = None
         self.hShape = None
         self.hVertex = None
         self.hEdge = None
-        self.update()
+        self.update()  # 更新当前 Canvas 显示
+
+        # 如果需要同步到另一个 Canvas，则调用它的 loadShapes 方法
+        if sync_canvas is not None:
+            sync_canvas.loadShapes(shapes, replace=replace)
 
     def setShapeVisible(self, shape, value):
         self.visible[shape] = value

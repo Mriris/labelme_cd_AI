@@ -1398,12 +1398,26 @@ class MainWindow(QtWidgets.QMainWindow):
             self.labelList.removeItem(item)
 
     def loadShapes(self, shapes, replace=True):
+        """加载标签到两个 Canvas"""
         self._noSelectionSlot = True
+
+        # 添加标签到标签列表
         for shape in shapes:
             self.addLabel(shape)
+
+        # 清除标签选择
         self.labelList.clearSelection()
         self._noSelectionSlot = False
+
+        # 将标签加载到第一个 Canvas
         self.canvas.loadShapes(shapes, replace=replace)
+
+        # 将标签同步加载到第二个 Canvas
+        self.canvas_1.loadShapes(shapes, replace=replace)
+
+        # 更新两个 Canvas 的显示
+        self.canvas.update()
+        self.canvas_1.update()
 
     def loadLabels(self, shapes):
         s = []
@@ -1417,7 +1431,7 @@ class MainWindow(QtWidgets.QMainWindow):
             other_data = shape["other_data"]
 
             if not points:
-                # skip point-empty shape
+                # 跳过没有点的形状
                 continue
 
             shape = Shape(
@@ -1431,6 +1445,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 shape.addPoint(QtCore.QPointF(x, y))
             shape.close()
 
+            # 初始化默认的标签标志
             default_flags = {}
             if self._config["label_flags"]:
                 for pattern, keys in self._config["label_flags"].items():
@@ -1442,7 +1457,13 @@ class MainWindow(QtWidgets.QMainWindow):
             shape.other_data = other_data
 
             s.append(shape)
+
+        # 加载标签到第一个 Canvas
         self.loadShapes(s)
+
+        # 同步标签到第二个 Canvas
+        if hasattr(self, "canvas_1"):  # 确保第二个 Canvas 存在
+            self.canvas_1.loadShapes(s)
 
     def loadFlags(self, flags):
         self.flag_widget.clear()
@@ -1988,21 +2009,62 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.errorMessage("Error", "Please select exactly two images.")
 
     def loadFiles(self, filename1, filename2):
-        """加载两张图片到两个 Canvas"""
-        # 加载第一张图片到左侧 Canvas
-        pixmap1 = QtGui.QPixmap(filename1)
-        self.canvas.loadPixmap(pixmap1)
+        """加载两张图片并同步标签"""
+        self.resetState()
+        self.canvas.setEnabled(False)
+        self.canvas_1.setEnabled(False)
+
+        # 加载第一张图片
+        if not QtCore.QFile.exists(filename1):
+            logger.error("File does not exist: %s", filename1)
+            return False
+
+        self.imageData = LabelFile.load_image_file(filename1)
+        if not self.imageData:
+            logger.error("Failed to load image data for file: %s", filename1)
+            return False
+
+        image1 = QtGui.QImage.fromData(self.imageData)
+        if image1.isNull():
+            logger.error("Image1 is null after loading from file: %s", filename1)
+            return False
+
+        # 加载第二张图片
+        if not QtCore.QFile.exists(filename2):
+            logger.error("File does not exist: %s", filename2)
+            return False
+
+        imageData2 = LabelFile.load_image_file(filename2)
+        if not imageData2:
+            logger.error("Failed to load image data for file: %s", filename2)
+            return False
+
+        image2 = QtGui.QImage.fromData(imageData2)
+        if image2.isNull():
+            logger.error("Image2 is null after loading from file: %s", filename2)
+            return False
+
+        # 加载图片到 Canvas
+        self.canvas.loadPixmap(QtGui.QPixmap.fromImage(image1))
+        self.canvas_1.loadPixmap(QtGui.QPixmap.fromImage(image2))
+
+        # 加载第一张图片的标签
+        label_file1 = osp.splitext(filename1)[0] + ".json"
+        if QtCore.QFile.exists(label_file1) and LabelFile.is_label_file(label_file1):
+            try:
+                self.labelFile = LabelFile(label_file1)
+            except LabelFileError as e:
+                logger.error("Error loading label file: %s", label_file1)
+                return False
+            self.loadLabels(self.labelFile.shapes)
+        else:
+            logger.warning("No label file found for image: %s", filename1)
+
+        # 启用 Canvas 并更新状态
         self.canvas.setEnabled(True)
-
-        # 加载第二张图片到右侧 Canvas
-        pixmap2 = QtGui.QPixmap(filename2)
-        self.canvas_1.loadPixmap(pixmap2)
         self.canvas_1.setEnabled(True)
-
-        # 设置 self.image 为第一张图片的 QImage
-        self.image = pixmap1.toImage()
-        self.filename = filename1  # 当前主文件名
         self.status(str(self.tr("Loaded %s and %s")) % (filename1, filename2))
+        return True
 
     def changeOutputDirDialog(self, _value=False):
         default_output_dir = self.output_dir
