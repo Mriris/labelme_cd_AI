@@ -2128,8 +2128,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.current_image_1 = filename1
         self.current_image_2 = filename2
 
+        # 设置 self.imagePath
+        self.imagePath = filename1  # 这里将路径赋值给 self.imagePath，供后续使用
+        self.filename = filename1  # 设置 self.filename 为当前文件路径
+
         # 加载第一张图片的标签
-        label_file1 = osp.splitext(filename1)[0] + ".json"
+        label_file1 = osp.splitext(self.imagePath)[0] + ".json"
         if QtCore.QFile.exists(label_file1) and LabelFile.is_label_file(label_file1):
             try:
                 self.labelFile = LabelFile(label_file1)
