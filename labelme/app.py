@@ -2132,17 +2132,29 @@ class MainWindow(QtWidgets.QMainWindow):
         self.imagePath = filename1  # 这里将路径赋值给 self.imagePath，供后续使用
         self.filename = filename1  # 设置 self.filename 为当前文件路径
 
-        # 加载第一张图片的标签
-        label_file1 = osp.splitext(self.imagePath)[0] + ".json"
+        # 尝试加载与第一张图片同名的标签文件
+        label_file1 = osp.splitext(filename1)[0] + ".json"
         if QtCore.QFile.exists(label_file1) and LabelFile.is_label_file(label_file1):
             try:
                 self.labelFile = LabelFile(label_file1)
+                self.loadLabels(self.labelFile.shapes)
             except LabelFileError as e:
                 logger.error("Error loading label file: %s", label_file1)
                 return False
-            self.loadLabels(self.labelFile.shapes)
         else:
             logger.warning("No label file found for image: %s", filename1)
+
+            # 如果第一张图片的标签文件找不到，则尝试加载第二张图片同名的标签文件
+            label_file2 = osp.splitext(filename2)[0] + ".json"
+            if QtCore.QFile.exists(label_file2) and LabelFile.is_label_file(label_file2):
+                try:
+                    self.labelFile = LabelFile(label_file2)
+                    self.loadLabels(self.labelFile.shapes)
+                except LabelFileError as e:
+                    logger.error("Error loading label file: %s", label_file2)
+                    return False
+            else:
+                logger.warning("No label file found for image: %s", filename2)
 
         # 启用 Canvas 并更新状态
         self.canvas.setEnabled(True)
