@@ -281,7 +281,7 @@ class MainWindow(QtWidgets.QMainWindow):
         switch_image = action(
             self.tr("切换图像"),  # 按钮文本
             self.switch_image,  # 绑定到的功能
-            None,  # 没有快捷键
+            shortcuts["switch_image"],  # 快捷键
             "switch-image",  # 按钮图标
             self.tr("切换左右图像的显示"),  # 按钮提示
         )

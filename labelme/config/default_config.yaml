@@ -83,6 +83,7 @@ canvas:
     ai_mask: false
 
 shortcuts:
+  switch_image: "`"
   close: Ctrl+W
   open: Ctrl+O
   open_dir: Ctrl+U
