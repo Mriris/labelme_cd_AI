@@ -931,33 +931,43 @@ class Canvas(QtWidgets.QWidget):
         return super(Canvas, self).minimumSizeHint()
 
     def wheelEvent(self, ev):
+        # 获取当前事件的修饰符（检测按下的键）
+        mods = ev.modifiers()
+        delta = ev.angleDelta()
+
+        # 仅在 QT5 环境下检查
         if QT5:
-            mods = ev.modifiers()
-            delta = ev.angleDelta()
             if QtCore.Qt.ControlModifier == int(mods):
-                # with Ctrl/Command key
-                # zoom
+                # 如果按下了 Ctrl 键，触发缩放操作
                 self.zoomRequest.emit(delta.y(), ev.pos())
+            elif QtCore.Qt.ShiftModifier == int(mods):
+                # 如果按下了 Shift 键，触发水平滚动
+                self.scrollRequest.emit(delta.y(), QtCore.Qt.Horizontal)  # 手动触发水平滚动
             else:
-                # scroll
-                self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
+                # 默认情况下触发垂直滚动
+                # print(f"垂直滚动，增量：{delta.y()}")  # Debugging info
                 self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
         else:
+            # 非 QT5 环境下处理事件
             if ev.orientation() == QtCore.Qt.Vertical:
-                mods = ev.modifiers()
                 if QtCore.Qt.ControlModifier == int(mods):
-                    # with Ctrl/Command key
+                    # 如果按下了 Ctrl 键，触发缩放操作
                     self.zoomRequest.emit(ev.delta(), ev.pos())
+                elif QtCore.Qt.ShiftModifier == int(mods):
+                    # 如果按下了 Shift 键，触发水平滚动
+                    if delta.x() != 0:
+                        self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
+                    else:
+                        # 如果没有水平滚动的增量，基于 delta.y() 进行补偿
+                        self.scrollRequest.emit(120 if delta.y() > 0 else -120, QtCore.Qt.Horizontal)
                 else:
-                    self.scrollRequest.emit(
-                        ev.delta(),
-                        QtCore.Qt.Horizontal
-                        if (QtCore.Qt.ShiftModifier == int(mods))
-                        else QtCore.Qt.Vertical,
-                    )
+                    # 默认情况下触发垂直滚动
+                    self.scrollRequest.emit(ev.delta(), QtCore.Qt.Vertical)
             else:
+                # 处理水平滚动
                 self.scrollRequest.emit(ev.delta(), QtCore.Qt.Horizontal)
-        ev.accept()
+
+        ev.accept()  # 接受事件，防止继续传递
 
     def moveByKeyboard(self, offset):
         if self.selectedShapes:
