@@ -1742,6 +1742,9 @@ class MainWindow(QtWidgets.QMainWindow):
         units = 1.1 if delta > 0 else 0.9
         self.addZoom(units)  # 调用 addZoom 方法，同步缩放
 
+        # 确保右侧 canvas 也使用相同的缩放因子
+        self.canvas_1.scale = self.canvas.scale
+
         # 计算滚动偏移
         canvas_width_new = self.canvas.width()
         if canvas_width_old != canvas_width_new:
@@ -1752,15 +1755,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
             # 确保两个 Canvas 的滚动条同步
             if self.scrollBars[Qt.Horizontal] is not None:
-                self.setScroll(Qt.Horizontal, self.scrollBars[Qt.Horizontal].value() + x_shift)
-                self.scrollArea_1.horizontalScrollBar().setValue(
-                    self.scrollBars[Qt.Horizontal].value() + x_shift
-                )
+                new_x_scroll = self.scrollBars[Qt.Horizontal].value() + x_shift
+                self.setScroll(Qt.Horizontal, new_x_scroll)
+                self.scrollArea_1.horizontalScrollBar().setValue(new_x_scroll)
+
             if self.scrollBars[Qt.Vertical] is not None:
-                self.setScroll(Qt.Vertical, self.scrollBars[Qt.Vertical].value() + y_shift)
-                self.scrollArea_1.verticalScrollBar().setValue(
-                    self.scrollBars[Qt.Vertical].value() + y_shift
-                )
+                new_y_scroll = self.scrollBars[Qt.Vertical].value() + y_shift
+                self.setScroll(Qt.Vertical, new_y_scroll)
+                self.scrollArea_1.verticalScrollBar().setValue(new_y_scroll)
 
     def setFitWindow(self, value=True):
         if value:
