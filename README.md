@@ -53,7 +53,7 @@ pip install labelme
 
 ### 方式2：使用独立的可执行文件（最简单）
 
-如果您希望获得无需安装任何依赖项（如Python和Qt）即可使用的便捷方式，可以下载["安装Labelme应用"](https://www.labelme.io/docs/install-labelme-app)的独立可执行文件。
+如果您希望获得无需安装任何依赖项（如Python和Qt）即可使用的便捷方式，可以下载["Labelme应用"](https://github.com/Mriris/labelme_cd_AI/releases/latest)的免安装可执行文件。
 
 
 ## 使用
