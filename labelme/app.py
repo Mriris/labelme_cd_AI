@@ -977,10 +977,14 @@ class MainWindow(QtWidgets.QMainWindow):
         #    QWhatsThis.enterWhatsThisMode()
 #TODO: 暂行方案解决右边图像无法交互的问题
     def switch_image(self):
-        """切换显示的两张图片"""
+        """切换显示的两张图片并保持视角位置"""
         if self.current_image_1 is None or self.current_image_2 is None:
             logger.error("当前图像未加载，无法切换！")
             return
+
+        # 记录当前的滚动位置
+        scroll_x = self.scrollArea.horizontalScrollBar().value()  # 水平滚动条位置
+        scroll_y = self.scrollArea.verticalScrollBar().value()  # 垂直滚动条位置
 
         # 先保存标签文件
         if self.dirty:
@@ -988,6 +992,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # 调用 loadFiles 来切换图片
         self.loadFiles(self.current_image_2, self.current_image_1)  # 切换显示的图像
+
+        # 恢复滚动位置
+        self.scrollArea.horizontalScrollBar().setValue(scroll_x)
+        self.scrollArea.verticalScrollBar().setValue(scroll_y)
+
+        # logger.info(f"视角位置已恢复: 水平={scroll_x}, 垂直={scroll_y}")
 
     def initializeAiModelForFocusedCanvas(self):
         if self.canvas.hasFocus():  # 如果左侧Canvas获得焦点
@@ -2143,10 +2153,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.labelFile = LabelFile(label_file1)
                 self.loadLabels(self.labelFile.shapes)
             except LabelFileError as e:
-                logger.error(f"Error loading label file: {label_file1}")
+                logger.warning(f"Error loading label file: {label_file1}")
                 return False
         else:
-            logger.error("No label file found for image: {filename1}")
+            logger.warning(f"No label file found for image: {filename1}")
 
             # 如果第一张图片的标签文件找不到，则尝试加载第二张图片同名的标签文件
             label_file2 = osp.splitext(filename2)[0] + ".json"
@@ -2155,10 +2165,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.labelFile = LabelFile(label_file2)
                     self.loadLabels(self.labelFile.shapes)
                 except LabelFileError as e:
-                    logger.error("Error loading label file: {label_file2}")
+                    logger.error(f"Error loading label file: {label_file2}")
                     return False
             else:
-                logger.warning("No label file found for image: {filename2}")
+                logger.warning(f"No label file found for image: {filename2}")
 
         # 启用 Canvas 并更新状态
         self.canvas.setEnabled(True)
