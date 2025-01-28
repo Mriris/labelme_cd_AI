@@ -982,6 +982,10 @@ class MainWindow(QtWidgets.QMainWindow):
             logger.error("当前图像未加载，无法切换！")
             return
 
+        # 先保存标签文件
+        if self.dirty:
+            self.saveFile()  # 保存当前文件
+
         # 调用 loadFiles 来切换图片
         self.loadFiles(self.current_image_2, self.current_image_1)  # 切换显示的图像
 
@@ -2139,10 +2143,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.labelFile = LabelFile(label_file1)
                 self.loadLabels(self.labelFile.shapes)
             except LabelFileError as e:
-                logger.error("Error loading label file: %s", label_file1)
+                logger.error(f"Error loading label file: {label_file1}")
                 return False
         else:
-            logger.warning("No label file found for image: %s", filename1)
+            logger.error("No label file found for image: {filename1}")
 
             # 如果第一张图片的标签文件找不到，则尝试加载第二张图片同名的标签文件
             label_file2 = osp.splitext(filename2)[0] + ".json"
@@ -2151,10 +2155,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.labelFile = LabelFile(label_file2)
                     self.loadLabels(self.labelFile.shapes)
                 except LabelFileError as e:
-                    logger.error("Error loading label file: %s", label_file2)
+                    logger.error("Error loading label file: {label_file2}")
                     return False
             else:
-                logger.warning("No label file found for image: %s", filename2)
+                logger.warning("No label file found for image: {filename2}")
 
         # 启用 Canvas 并更新状态
         self.canvas.setEnabled(True)
@@ -2200,14 +2204,22 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def saveFile(self, _value=False):
         assert not self.image.isNull(), "cannot save empty image"
+
+        # 如果有标签文件，保存标签文件
         if self.labelFile:
-            # DL20180323 - overwrite when in directory
             self._saveFile(self.labelFile.filename)
+            logger.info(f"标签文件已保存: {self.labelFile.filename}")  # 输出保存的标签文件路径
+        # 如果设置了 output_file，则保存到 output_file
         elif self.output_file:
             self._saveFile(self.output_file)
-            self.close()
+            logger.info(f"输出文件已保存: {self.output_file}")  # 输出保存的文件路径
+            self.close()  # 保存完毕后关闭
+        # 否则，弹出文件对话框让用户选择保存路径
         else:
-            self._saveFile(self.saveFileDialog())
+            save_path = self.saveFileDialog()
+            if save_path:  # 确保返回的路径有效
+                self._saveFile(save_path)
+                logger.info(f"文件已保存到: {save_path}")  # 输出保存的文件路径
 
     def saveFileAs(self, _value=False):
         assert not self.image.isNull(), "cannot save empty image"
