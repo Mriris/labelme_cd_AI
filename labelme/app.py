@@ -2273,12 +2273,25 @@ class MainWindow(QtWidgets.QMainWindow):
             self.setClean()
 
     def closeFile(self, _value=False):
+        """关闭文件并重置图像缩放，清除两个图像画布"""
         if not self.mayContinue():
             return
+
         self.resetState()
         self.setClean()
         self.toggleActions(False)
+
+        # 禁用并重置两个画布
         self.canvas.setEnabled(False)
+        self.canvas_1.setEnabled(False)
+
+        # 设置两个画布为空图像或清除其显示内容
+        self.canvas.loadPixmap(QtGui.QPixmap())  # 清空左侧画布
+        self.canvas_1.loadPixmap(QtGui.QPixmap())  # 清空右侧画布
+
+        # 重置缩放比例
+        self.setZoom(1.0)  # 调用 setZoom 方法重置缩放
+
         self.actions.saveAs.setEnabled(False)
 
     def getLabelFile(self):
