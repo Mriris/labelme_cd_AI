@@ -73,11 +73,11 @@ canvas:
   num_backups: 10
   # show crosshair
   crosshair:
-    polygon: false
+    polygon: true
     rectangle: true
     circle: false
     line: false
-    point: false
+    point: true
     linestrip: false
     ai_polygon: false
     ai_mask: false
