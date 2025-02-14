@@ -2215,7 +2215,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.fileListWidget.repaint()
 
     def saveFile(self, _value=False):
-        assert not self.image.isNull(), "cannot save empty image"
+        # assert not self.image.isNull(), "cannot save empty image"
 
         # 如果有标签文件，保存标签文件
         if self.labelFile:
