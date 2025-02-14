@@ -162,7 +162,7 @@ class LabelFile(object):
         otherData=None,
         flags=None,
     ):
-        # logger.warning(f"图像维度：width = {imageHeight}, height = {imageWidth}")
+        logger.warning(f"图像维度：width = {imageHeight}, height = {imageWidth}")
         if imageData is not None:
             imageData = base64.b64encode(imageData).decode("utf-8")
             imageHeight, imageWidth = self._check_image_height_and_width(
