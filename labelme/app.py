@@ -50,7 +50,10 @@ LABEL_COLORMAP = imgviz.label_colormap()
 
 class MainWindow(QtWidgets.QMainWindow):
     FIT_WINDOW, FIT_WIDTH, MANUAL_ZOOM = 0, 1, 2
-
+    imageWidth_L=0
+    imageHeight_L=0
+    imageWidth_R=0
+    imageHeight_R=0
     def __init__(
             self,
             config=None,
@@ -1584,6 +1587,7 @@ class MainWindow(QtWidgets.QMainWindow):
             flag = item.checkState() == Qt.Checked
             flags[key] = flag
         try:
+            # logger.warning(f"图像维度2：width = {self.imageWidth_L}, height = {self.imageHeight_L}")
             imagePath = osp.relpath(self.imagePath, osp.dirname(filename))
             imageData = self.imageData if self._config["store_data"] else None
             if osp.dirname(filename) and not osp.exists(osp.dirname(filename)):
@@ -1593,8 +1597,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 shapes=shapes,
                 imagePath=imagePath,
                 imageData=imageData,
-                imageHeight=self.image.height(),
-                imageWidth=self.image.width(),
+                imageHeight=self.imageWidth_L,
+                imageWidth=self.imageHeight_L,
                 otherData=self.otherData,
                 flags=flags,
             )
@@ -2120,6 +2124,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if image1.isNull():
             logger.error("Image1 is null after loading from file: %s", filename1)
             return False
+
+        # logger.warning(f"图像维度0：width = {image1.width()}, height = {image1.height()}")
+        self.imageWidth_L = image1.width()
+        self.imageHeight_L = image1.height()
 
         # 加载第二张图片
         if not QtCore.QFile.exists(filename2):

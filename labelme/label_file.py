@@ -98,11 +98,11 @@ class LabelFile(object):
                 imageData = self.load_image_file(imagePath)
             flags = data.get("flags") or {}
             imagePath = data["imagePath"]
-            self._check_image_height_and_width(
-                base64.b64encode(imageData).decode("utf-8"),
-                data.get("imageHeight"),
-                data.get("imageWidth"),
-            )
+            # self._check_image_height_and_width(
+            #     base64.b64encode(imageData).decode("utf-8"),
+            #     data.get("imageHeight"),
+            #     data.get("imageWidth"),
+            # )
             shapes = [
                 dict(
                     label=s["label"],
@@ -162,6 +162,7 @@ class LabelFile(object):
         otherData=None,
         flags=None,
     ):
+        # logger.warning(f"图像维度：width = {imageHeight}, height = {imageWidth}")
         if imageData is not None:
             imageData = base64.b64encode(imageData).decode("utf-8")
             imageHeight, imageWidth = self._check_image_height_and_width(
