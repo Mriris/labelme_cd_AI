@@ -363,12 +363,13 @@ class MainWindow(QtWidgets.QMainWindow):
         saveAuto = action(
             text=self.tr("Save &Automatically"),
             slot=lambda x: self.actions.saveAuto.setChecked(x),
-            icon="save",
+            # icon="save",
             tip=self.tr("Save automatically"),
             checkable=True,
             enabled=True,
+            checked=self._config["auto_save"]
         )
-        saveAuto.setChecked(self._config["auto_save"])
+        # saveAuto.setChecked(self._config["auto_save"])
 
         saveWithImageData = action(
             text=self.tr("Save With Image Data"),
