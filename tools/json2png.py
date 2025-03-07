@@ -2,10 +2,11 @@ import numpy as np
 import cv2
 import json
 import os
+import re
 
 # 指定要读取 JSON 文件的文件夹和输出结果的文件夹
-input_folder = r'C:\0Program\Python\labelme_cd_AI\examples\change_detective\data_annotated'  # json文件夹路径
-output_folder = r'C:\0Program\Python\labelme_cd_AI\examples\change_detective\png'  # 输出文件夹路径
+input_folder = r'C:\0Program\Datasets\241120\Compare\Datas\mask'  # json文件夹路径
+output_folder = r'C:\0Program\Datasets\241120\Compare\Datas\mask'  # 输出文件夹路径
 
 # 检查输出文件夹是否存在，如果不存在则创建
 if not os.path.exists(output_folder):
@@ -39,7 +40,7 @@ for filename in os.listdir(input_folder):
                     continue
 
                 # 创建一个黑色背景的图像
-                image = np.zeros((height, width), dtype=np.uint8)
+                image = np.zeros((width, height), dtype=np.uint8)
 
                 # 遍历所有的多边形，并绘制白色区域
                 for shape in data['shapes']:
@@ -49,17 +50,27 @@ for filename in os.listdir(input_folder):
                     # 绘制多边形
                     cv2.fillPoly(image, [points], 255)
 
-                # 提取图片文件名（不包括扩展名）
-                image_name = os.path.splitext(os.path.basename(data['imagePath']))[0]
+                # 获取 JSON 文件名
+                json_filename = os.path.basename(json_path)
+
+                # 检查是否以 "_字母.json" 结尾，使用正则表达式匹配
+                if re.match(r".*_[a-zA-Z]\.json$", json_filename):
+                    # 匹配成功，提取 "_" 之前的部分并将字母改为 "E"
+                    base_name = json_filename.rsplit('_', 1)[0]
+                    image_name = base_name + '_E.png'
+                else:
+                    # 不匹配，基于 JSON 文件名生成输出文件名
+                    base_name = os.path.splitext(json_filename)[0]
+                    image_name = base_name + '_E.png'
 
                 # 拼接保存的图像路径
-                output_image_path = os.path.join(output_folder, f'{image_name}.png')
+                output_image_path = os.path.join(output_folder, image_name)
 
-                # 保存图像，使用与 imagePath 相同的文件名（去除后缀名）
+                # 保存图像
                 cv2.imwrite(output_image_path, image)
 
                 # 输出提示
-                print(f'图像 {filename} 已保存为 {output_image_path}')
+                print(f'图像 {json_filename} 已保存为 {output_image_path}')
 
             except json.JSONDecodeError as e:
                 # JSON 解析错误
