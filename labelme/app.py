@@ -50,10 +50,11 @@ LABEL_COLORMAP = imgviz.label_colormap()
 
 class MainWindow(QtWidgets.QMainWindow):
     FIT_WINDOW, FIT_WIDTH, MANUAL_ZOOM = 0, 1, 2
-    imageWidth_L=0
-    imageHeight_L=0
-    imageWidth_R=0
-    imageHeight_R=0
+    imageWidth_L = 0
+    imageHeight_L = 0
+    imageWidth_R = 0
+    imageHeight_R = 0
+
     def __init__(
             self,
             config=None,
@@ -210,8 +211,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.selectionChanged.connect(self.shapeSelectionChanged)
         self.canvas.drawingPolygon.connect(self.toggleDrawingSensitive)
 
-        self.canvas.shapeMoved.connect(self.syncCanvas) # 连接画布上的形状移动信号到syncCanvas槽函数
-        self.canvas.newShape.connect(self.syncCanvas) # 连接画布上的新形状信号到syncCanvas槽函数
+        self.canvas.shapeMoved.connect(self.syncCanvas)  # 连接画布上的形状移动信号到syncCanvas槽函数
+        self.canvas.newShape.connect(self.syncCanvas)  # 连接画布上的新形状信号到syncCanvas槽函数
 
         # 初始化第一个 ScrollArea
         self.scrollArea = QtWidgets.QScrollArea()
@@ -979,7 +980,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.firstStart = True
         # if self.firstStart:
         #    QWhatsThis.enterWhatsThisMode()
-#TODO: 暂行方案解决右边图像无法交互的问题
+
+    # TODO: 暂行方案解决右边图像无法交互的问题
     def switch_image(self):
         """切换显示的两张图片并保持视角位置"""
         if self.current_image_1 is None or self.current_image_2 is None:
@@ -1030,6 +1032,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """同步其他画布"""
         if self.canvas_1 is not None:
             self.canvas_1.loadShapes(self.canvas.shapes, replace=True)
+
     def menu(self, title, actions=None):
         menu = self.menuBar().addMenu(title)
         if actions:
